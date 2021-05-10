@@ -1,0 +1,370 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<chapter xmlns="http://www.example.com/postrisc" id="llvm">
+<title>Emulator and LLVM backend</title>
+
+<preface>
+
+<p>Development of the <archname/> backend for the LLVM compiler:
+<link href="https://github.com/bdpx/llvm-project">github.com/bdpx/llvm-project</link>.
+</p>
+
+</preface>
+
+<section id="postrisc_options">
+<title>Emulator options</title>
+
+<p>The <strong>postrisc</strong> is a console application for all basic tasks.
+Uses standard streams for input/output that need to be redirected from file or to file.
+It is called with different keys from the command line (table below).
+</p>
+
+<p>Command-line options:</p>
+
+<pre>--scan <lt/>src.s</pre>
+<p>Scan and recognize individual tokens (tokens) of the source program in assembler virtual processor</p>
+
+<pre>--scan-html <lt/>src.s</pre>
+<p>Scan and mark as html source program in assembler virtual processor</p>
+
+<pre>--assemble <lt/>src.s <gt/>src.bin</pre>
+<p>Assemble the program <param>src.s</param> in the object file <param>src.bin</param></p>
+
+<pre>--assemble-c</pre>
+<p>Assemble as an C++ array for embedding into a C++ program</p>
+
+<pre>--disasm <lt/>src.bin</pre>
+<p>Disassemble the file <param>src.bin</param></p>
+
+<pre>--dumpbin <lt/>src.bin</pre>
+<p>Disassemble the <param>src.bin</param> file with binary representation</p>
+
+<pre>--export-definitions</pre>
+<p>Lists asm known predefined assembler constants</p>
+
+<pre>--dump-file=file</pre>
+<p>Dump final emulation state to file</p>
+
+<pre>--log-file=path</pre>
+<p>Sets log file path</p>
+
+<pre>--log-level=level</pre>
+<p>Set logging level</p>
+
+<pre>--log-subsystem=mask</pre>
+<p>Set logging subsystem mask</p>
+
+<pre>--profiling</pre>
+<p>Defines using profiling (per bundle, per core)</p>
+
+<pre>--timing-info</pre>
+<p>Report timing info</p>
+
+<pre>--verbose</pre>
+<p>Sets verbose logging</p>
+
+<pre>--execute <lt/>src.bin</pre>
+<p>Execute the raw program <param>src.bin</param> in the whole-system emulation</p>
+
+<pre>--base-address=vaddr</pre>
+<p>For the whole-system emulation defines virtual base address for image loading</p>
+
+<pre>--device-array=paddr;vaddr;config-size</pre>
+<p>For the whole-system emulation set device array info: physical address, virtual address, device configuration space size</p>
+
+<pre>--memory=size;paddr</pre>
+<p>For the whole-system emulation add memory device with size (in hexadecimal) starting from physical address paddr</p>
+
+<pre>--pa-size=nbits</pre>
+<p>For the whole-system emulation set physical address size in bits</p>
+
+<pre>--paging=offset;nlevels</pre>
+<p>For the whole-system emulation set paging info: page offset in bits and number of indexing levels. Depth of virtual address space will be: offset+nlevels*(offset-3)</p>
+
+<pre>--rom=path;paddr;vaddr</pre>
+<p>For the whole-system emulation adds ROM image, map it to corresponding physical and virtual addresses</p>
+
+<pre>--video=paddr;vaddr;width;height</pre>
+<p>For the whole-system emulation adds video device (experimental)</p>
+
+<pre>--exeapp</pre>
+<p>execute the ELF program in the emulator. Static PIE executables only, syscall emulator for Linux-like system (very limited).</p>
+
+<pre>--env=key=value</pre>
+<p>For user-app emulation defines guest app environment variable</p>
+
+<pre>--param=value</pre>
+<p>For user-app emulation defines guest app parameter</p>
+
+<p>For example, running  <archname/> ELF static-PIE image:
+</p>
+
+<code>
+/path/to/postrisc \
+    --exeapp --log-file=test-log.txt \
+    --param=postrisc-app --param=-app-option1 --param=-app-options2
+</code>
+
+<p>The <strong>qtpostrisc</strong> is a Qt-based graphical application
+with assembler editor, debugger, doom graphical backend, etc (Qt6 required).
+Support same command-line options as console app.
+</p>
+
+<code>
+/path/to/qtpostrisc \
+    --exeapp --log-file=doom-log.txt \
+    --param=doomgeneric.postrisc --param=-doom --param=-options
+</code>
+
+</section>
+
+<section id="llvm_intro">
+<title>LLVM backend intro</title>
+
+<p>How to build/use.</p>
+
+<table>
+<caption><archname/>-specifiec LLC options</caption>
+<thead><tr>
+<th>Option</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>--postrisc-enable-block-merging</td><td>1</td><td>Enable fallthrough blocks merging.</td></tr>
+<tr><td>--postrisc-enable-dense-calls</td><td>1</td><td>Enable calls inside bundle.</td></tr>
+<tr><td>--postrisc-enable-move-merging</td><td>1</td><td>Enable mov2 merging.</td></tr>
+<tr><td>--postrisc-enable-nullification</td><td>0</td><td>Enable nullification instructions.</td></tr>
+<tr><td>--postrisc-enable-pre-post-update</td><td>0</td><td>Enable Pre/Post update instructions.</td></tr>
+<tr><td>--postrisc-max-nullification-blocksize</td><td>8</td><td>Maximum nullification block size.</td></tr>
+</tbody>
+</table>
+
+</section>
+
+<section id="llvm_limitations">
+<title>LLVM backend limitations</title>
+
+<p>Nullification - it works!</p>
+
+<p>Pre/post update addressing is not worked.</p>
+
+<p>Loop instructions aren't used in compiler.</p>
+
+<p>Currently, only static PIE executables are supported by compiler and emulator.</p>
+
+</section>
+
+<section id="llvm_musl_port">
+<title>MUSL port</title>
+
+<p><archname/> port for MUSL: <link href="https://github.com/bdpx/musl">github.com/bdpx/musl</link>.
+</p>
+<p>MUSL limitations: doesn't support f128.</p>
+<p><archname/> limitations: currently, buildable only as a static lib.</p>
+
+</section>
+
+<section id="llvm_code_density">
+<title>Code density comparison</title>
+
+<p>Here are <link href="https://www.reddit.com/r/hardware/comments/jxsiee/comment/gd23zbm/">results</link> for
+SQLite 3.33.0 compiled with Clang 10.0.1 on FreeBSD 12.1 with -Os for various architectures:
+</p>
+
+<code>
+   text    data     bss     dec     hex filename
+ 649095    4576     964  654635   9fd2b sqlite3.a32.o
+ 588115    8280    1304  597699   91ec3 sqlite3.a64.o
+ 641257    8320    1312  650889   9ee89 sqlite3.amd64.o
+ 584276    4576     952  589804   8ffec sqlite3.i686.o
+ 795319   16688    1304  813311   c68ff sqlite3.mips64el.o
+ 725083    4576     960  730619   b25fb sqlite3.mipsel.o
+ 691715    9148     960  701823   ab57f sqlite3.ppc.o
+ 712559   49144    1304  763007   ba47f sqlite3.ppc64.o
+ 689035    4960     959  694954   a9aaa sqlite3.rv32g.o
+ 509583    4960     959  515502   7ddae sqlite3.rv32gc.o
+ 689035    4960     959  694954   a9aaa sqlite3.rv64g.o
+ 512500    8668    1299  522467   7f8e3 sqlite3.rv64gc.o
+ 917929    8280    1304  927513   e2719 sqlite3.s390x.o
+ 445205    4576     964  450745   6e0b9 sqlite3.t32.o
+</code>
+
+<p>where a32 is ARMv7-A in ARM mode, t32 is the same in thumb mode and a64 is ARMv8-A.
+The rest are self explanatory.
+The clear winner is ARM Thumb, but RISC-V does well indeed (with compressed instructions, without it's rather meh) It's the most space efficient 64 bit ISA for sure.
+i686 does a little worse (still the third most compact after RV32gc and T32) and the classic RISC instruction sets are just terrible.
+The clear loser is Z/Architecture (S390x).
+</p>
+
+<p>The SQLite 3.33.0
+<link href="https://chromium.googlesource.com/chromium/deps/sqlite/+/refs/heads/chromium-version-3.33.0/amalgamation_dev/">sqlite-chromium-version-3.33.0</link>,
+(probably same sources), compiled with Clang 24.0.0git on Linux.
+The results for <archname/> are without (not implemented yet in the compiler) using the base pre-update addressing mode and the loop instructions, which may improve code density a bit.
+Auto-vectorization is completely disabled for all architectures because doesn't supported for <archname/> yet.
+</p>
+
+<code>-fno-slp-vectorize
+-fno-vectorize
+-fno-tree-vectorize
+</code>
+
+<p>The Oz optimization: maximal code compression</p>
+
+<code>
+   text    data     bss     dec     hex filename
+ 380205    9080    1208  390493   5f55d sqlite3.thumb32.Oz.o
+ 407423   14888    1670  423981   6782d sqlite3.riscv64gc.Oz.o
+ 416709    9080    1206  426995   683f3 sqlite3.riscv32gc.Oz.o
+ 540979   14888    1670  557537   881e1 sqlite3.riscv64g.Oz.o
+ 548629    9072    1191  558892   8872c sqlite3.i686.Oz.o
+ 550225   14888    1670  566783   8a5ff sqlite3.arm64.Oz.o
+ 555511    9080    1206  565797   8a225 sqlite3.riscv32g.Oz.o
+ 557761    9080    1208  568049   8aaf1 sqlite3.arm32.Oz.o
+ 563334   15000    1691  580025   8d9b9 sqlite3.amd64.Oz.o
+ 573557    9080    1203  583840   8e8a0 sqlite3.loongarch32.Oz.o
+ 581069   16544    1683  599296   92500 sqlite3.loongarch64.Oz.o
+ 584115   14864    1683  600662   92a56 sqlite3.sparc64.Oz.o
+ 585645   14888    1683  602216   93068 sqlite3.postrisc-dense-null.Oz.o
+ 598301   14888    1683  614872   961d8 sqlite3.postrisc-dense.Oz.o
+ 605323   14888    1683  621894   97d46 sqlite3.s390x64.Oz.o
+ 608321    9052    1203  618576   97050 sqlite3.sparc32.Oz.o
+ 638147   92154    1670  731971   b2b43 sqlite3.powerpc64.Oz.o
+ 638221   14888    1683  654792   9fdc8 sqlite3.postrisc-aligned-null.Oz.o
+ 641946   37312    1206  680464   a6210 sqlite3.powerpc32.Oz.o
+ 647581   14888    1683  664152   a2258 sqlite3.postrisc-aligned.Oz.o
+ 688137   14888    1683  704708   ac0c4 sqlite3.mips64r6.Oz.o
+ 730033   14888    1683  746604   b646c sqlite3.mips64.Oz.o
+ 736745    9080    1203  747028   b6614 sqlite3.mips32.Oz.o
+</code>
+
+<p>The Os optimization</p>
+
+<code>
+   text    data     bss     dec     hex filename
+ 436526    9080    1203  446809   6d159 sqlite3.thumb32.Os.o
+ 472980   14920    1670  489570   77862 sqlite3.riscv64gc.Os.o
+ 484876    9080    1206  495162   78e3a sqlite3.riscv32gc.Os.o
+ 611937    9072    1191  622200   97e78 sqlite3.i686.Os.o
+ 629004   15032    1691  645727   9da5f sqlite3.amd64.Os.o
+ 638470    9080    1203  648753   9e631 sqlite3.arm32.Os.o
+ 643516   14920    1683  660119   a1297 sqlite3.arm64.Os.o
+ 644462   16544    1683  662689   a1ca1 sqlite3.loongarch64.Os.o
+ 647158    9080    1203  657441   a0821 sqlite3.loongarch32.Os.o
+ 654026   14920    1670  670616   a3b98 sqlite3.riscv64g.Os.o
+ 669003   14920    1683  685606   a7626 sqlite3.postrisc-dense-null.Os.o
+ 670779   14920    1683  687382   a7d16 sqlite3.s390x64.Os.o
+ 672186    9080    1206  682472   a69e8 sqlite3.riscv32g.Os.o
+ 679606   14864    1683  696153   a9f59 sqlite3.sparc64.Os.o
+ 686139   14920    1683  702742   ab916 sqlite3.postrisc-dense.Os.o
+ 706590    9052    1203  716845   af02d sqlite3.sparc32.Os.o
+ 709403   88890    1670  799963   c34db sqlite3.powerpc64.Os.o
+ 715762   37312    1206  754280   b8268 sqlite3.powerpc32.Os.o
+ 720491   14920    1683  737094   b3f46 sqlite3.postrisc-aligned-null.Os.o
+ 733211   14920    1683  749814   b70f6 sqlite3.postrisc-aligned.Os.o
+ 751434   14920    1683  768037   bb825 sqlite3.mips64r6.Os.o
+ 802330   14920    1683  818933   c7ef5 sqlite3.mips64.Os.o
+ 809234    9080    1203  819517   c813d sqlite3.mips32.Os.o
+</code>
+
+<p>The O2 optimization</p>
+
+<code>
+   text    data     bss     dec     hex filename
+ 645333   14792    1670  661795   a1923 sqlite3.riscv64gc.O2.o
+ 656831    9040    1203  667074   a2dc2 sqlite3.thumb32.O2.o
+ 657473    9040    1206  667719   a3047 sqlite3.riscv32gc.O2.o
+ 843032   14792    1683  859507   d1d73 sqlite3.arm64.O2.o
+ 848312    9004    1199  858515   d1993 sqlite3.i686.O2.o
+ 876947   14792    1670  893409   da1e1 sqlite3.riscv64g.O2.o
+ 879223    9040    1203  889466   d927a sqlite3.arm32.O2.o
+ 880879   14904    1691  897474   db1c2 sqlite3.amd64.O2.o
+ 897053    9040    1206  907299   dd823 sqlite3.riscv32g.O2.o
+ 903999    9040    1203  914242   df342 sqlite3.loongarch32.O2.o
+ 905095   16464    1683  923242   e166a sqlite3.loongarch64.O2.o
+ 941697   14736    1683  958116   e9ea4 sqlite3.sparc64.O2.o
+ 943238   37248    1206  981692   efabc sqlite3.powerpc32.O2.o
+ 948249   14792    1683  964724   eb874 sqlite3.postrisc-dense-null.O2.o
+ 957359   85634    1670 1044663   ff0b7 sqlite3.powerpc64.O2.o
+ 969129   14792    1683  985604   f0a04 sqlite3.postrisc-dense.O2.o
+ 985079    9012    1203  995294   f2fde sqlite3.sparc32.O2.o
+ 994169   14792    1683 1010644   f6bd4 sqlite3.mips64r6.O2.o
+1004377   14792    1683 1020852   f93b4 sqlite3.postrisc-aligned-null.O2.o
+1020809   14792    1683 1037284   fd3e4 sqlite3.postrisc-aligned.O2.o
+1064025   14792    1683 1080500  107cb4 sqlite3.s390x64.O2.o
+1067653   14792    1683 1084128  108ae0 sqlite3.mips64.O2.o
+1074083    9040    1203 1084326  108ba6 sqlite3.mips32.O2.o
+</code>
+
+<p>The main factor for code density is the possibility of returning inside the middle of an instruction bundle (dense vs aligned) and the using of nullification (null).
+In common, code density for <archname/> is more or less similar to MIPS, PowerPC, Sparc, LoongArch, S390, and RISC-V (without compression) or only slightly worse.
+This is surprising taking into account 128 registers, bundles, nops, etc.
+The clear loser is MIPS.
+</p>
+
+</section>
+
+<section id="llvm_doom_port">
+<title>DOOM port</title>
+
+<p><archname/> port for Doom-1: <link href="https://github.com/bdpx/postrisc_doom">github.com/bdpx/postrisc_doom</link>.
+Uses the MUSL standard library (as a static lib).
+Doom generic interface is implemented as additional system calls.
+</p>
+
+<p>The emulator log <link href="doom-log.html">doom-log.html</link> with static/dynamic instruction statistic for Doom Shareware demo scene autoplay.
+First 3 demoscenes, limited to 10 billion instructions.
+User time: 123.152 seconds.
+System time: 62.927 seconds.
+Frames: 12886.
+Iinstructions per frame: 776036 (up to 8-bit indexed image not counting emulator scaling/mapping).
+Instructions per pixel: 12.125.
+Frames per second: 69.249.
+</p>
+
+</section>
+
+<section id="postrisc_todo">
+<title>Todo</title>
+
+<p>A set of tools for working with <archname/> (assembler, disassembler, emulator is implemented) is incomplete.
+Further directions for improvement (the number in brackets like [2] characterizes the comparative complexity of the tasks):
+</p>
+
+<ol>
+
+<li>Development of a <em>macroprocessor</em> for the assembler <archname/>[3].
+</li>
+
+<li>Refactoring the <em>formula calculation unit</em> to introduce strict control over the use of object names in formulas
+(according to sections and segments of the program and the relocation types) [2].
+</li>
+
+<li>Development of the <em>object file format</em> for a virtual processor compatible with the ELF standard, processing assembler for ELF [2].
+</li>
+
+<li>Development of <em>separate compilation tools</em>,
+support for relocation records according to the ELF standard (Executable and Linkable Format) in assembler and the development of the linker [2].
+</li>
+
+<li>Development of a <em>visual debugger</em> for the emulator <archname/> [2].
+</li>
+
+<li>Development of a <em>text editor</em> with syntax highlighting of the assembler virtual processor [2].
+</li>
+
+<li>Adding new <quote>hardware</quote> tools to the virtual processor architecture and its emulator:
+cache management, virtual memory and translation buffer [2].
+</li>
+
+<li>Development of a <em>simulator</em> (cycle-accurate emulator) of the possible hardware implementation of a virtual processor,
+with the simulation of hardware such as multi-level instruction/data caches,
+translation buffers, branch prediction cache, return prediction stack, and other modern hardware. [5]
+</li>
+
+</ol>
+</section>
+
+</chapter>
