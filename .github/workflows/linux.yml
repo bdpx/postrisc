@@ -1,0 +1,180 @@
+name: linux
+run-name: Linux build, test, deploy
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: release
+  # Customize github-pages generated files path
+  DOCS_GEN_PATH: ./public
+  DEPLOY_GEN_PATH: ./deploy
+
+jobs:
+  build:
+    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
+    # You can convert this to a matrix build if you need cross-platform coverage.
+    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+    runs-on: ${{matrix.os}}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest ]
+        #build_type: [ release ] #, debug
+        compiler: [ gcc, clang ]
+        include:
+          - compiler: gcc
+            # FIXME: default g++ doesn't support float16, use 12
+            cpp_compiler: g++  #-12
+            c_compiler: gcc  #-12
+          - compiler: clang
+            # FIXME: default Ubuntu clang++ 14 doesn't support c++20, use 15
+            cpp_compiler: clang++  #-15
+            c_compiler: clang  #-15
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Report runner info
+      run:  |
+          uname -r
+          gcc --version
+          clang --version
+          cmake --version
+
+    - name: Install packages
+      run: |
+          sudo apt-get update
+          sudo apt-get install -yq \
+              libboost-dev \
+              libboost-system-dev \
+              libboost-filesystem-dev \
+              libboost-serialization-dev \
+              libboost-stacktrace-dev \
+              libboost-test-dev \
+              zlib1g-dev \
+              libgmp-dev \
+              libmpfr-dev \
+              qt6-base-dev \
+              libqt6svg6 \
+              libssl-dev \
+              libzstd-dev \
+              xsltproc \
+              libxml2-utils \
+              w3c-sgml-lib \
+              cppcheck
+
+    - name: Configure CMake
+      # Configure CMake in a 'build' subdirectory.
+      # CMAKE_BUILD_TYPE is only required if you are using a single-configuration generator such as make.
+      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      run: |
+          cmake -G "Unix Makefiles" \
+                -B ${{github.workspace}}/build \
+                -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
+                -DCMAKE_C_COMPILER=${{matrix.c_compiler}} \
+                -DCMAKE_CXX_COMPILER=${{matrix.cpp_compiler}} \
+                -DWORKFLOW_CI_BUILD=1
+
+    - name: Build
+      # Build your program with the given configuration
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} -- -j4
+
+    - name: Test
+      working-directory: ${{github.workspace}}/build
+      # Execute tests defined by the CMake configuration.
+      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
+      run: ctest -C ${{env.BUILD_TYPE}}
+
+    - name: list bin dir
+      working-directory: ${{github.workspace}}/build/bin
+      run: ls -a
+
+    #####################################################
+    # Generate deploy
+    #####################################################
+
+    - name: Clean deploy directory
+      run: |
+          rm -rf ${{env.DEPLOY_GEN_PATH}}
+          mkdir ${{env.DEPLOY_GEN_PATH}}
+
+    - name: copy built files
+      run: |
+        cmake -E copy ${{github.workspace}}/build/bin/postrisc ${{env.DEPLOY_GEN_PATH}}/postrisc
+        cmake -E copy ${{github.workspace}}/build/bin/qtpostrisc ${{env.DEPLOY_GEN_PATH}}/qtpostrisc
+
+    - name: List project deploy files
+      working-directory: ${{env.DEPLOY_GEN_PATH}}
+      run: ls -a
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-artifact-${{env.BUILD_TYPE}}-${{matrix.compiler}}
+        path: ${{env.DEPLOY_GEN_PATH}}
+        retention-days: 30
+
+    #####################################################
+    # Generate and publish project pages
+    #####################################################
+
+    - name: Clean public directory
+      run: |
+          rm -rf ${{env.DOCS_GEN_PATH}}
+          mkdir ${{env.DOCS_GEN_PATH}}
+
+    - name: Build project site
+      # copy selected files from ${{github.workspace}}/build/artifacts/
+      run: |
+        cp ${{github.workspace}}/build/artifacts/styles.css     ${{env.DOCS_GEN_PATH}}/styles.css
+        cp ${{github.workspace}}/build/artifacts/index.html     ${{env.DOCS_GEN_PATH}}/index.html
+        cp ${{github.workspace}}/build/artifacts/gen.html       ${{env.DOCS_GEN_PATH}}/gen.html
+        cp ${{github.workspace}}/build/artifacts/program.html   ${{env.DOCS_GEN_PATH}}/program.html
+        cp ${{github.workspace}}/build/artifacts/doom-log.html  ${{env.DOCS_GEN_PATH}}/doom-log.html
+        cp ${{github.workspace}}/build/artifacts/result.txt     ${{env.DOCS_GEN_PATH}}/result.txt
+        cp ${{github.workspace}}/build/artifacts/dump.html      ${{env.DOCS_GEN_PATH}}/dump.html
+        cp ${{github.workspace}}/build/artifacts/out_diz.s      ${{env.DOCS_GEN_PATH}}/out_diz.s
+        cp ${{github.workspace}}/build/artifacts/out_dump.s     ${{env.DOCS_GEN_PATH}}/out_dump.s
+        cp ${{github.workspace}}/build/artifacts/sitemap.xml    ${{env.DOCS_GEN_PATH}}/sitemap.xml
+
+    - name: List project site files
+      run: ls -a ${{env.DOCS_GEN_PATH}}
+
+    - name: Upload artifact
+      # This will automatically upload an artifact from the '/public' directory
+      if: ${{ matrix.compiler == 'clang' }}
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ${{env.DOCS_GEN_PATH}}
+        retention-days: 30
+
+######################################################################
+# separate job to push our generated site to our gh-pages branch
+######################################################################
+  deploy:
+    # Add a dependency to the build job
+    needs: build
+
+    # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
+    permissions:
+      actions: read     # workaround for deploy-pages 4.0.0
+      pages: write      # to deploy to Pages
+      id-token: write   # to verify the deployment originates from an appropriate source
+
+    # Deploy to the github-pages environment
+    environment:
+      name: Deploy project site on github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    # Specify runner + deployment step
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
