@@ -1,0 +1,9 @@
+/llvm/temp/*
+/llvm/codegen/*
+/llvm/code_density/*.o
+/llvm/code_density/*.txt
+/llvm/linker_test/*.o
+/llvm/linker_test/*.s
+/musl/*.o
+/musl/*.relocs
+/__pycache__/*
