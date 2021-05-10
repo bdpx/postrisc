@@ -1,0 +1,28 @@
+{
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": false,
+  "contributors": [
+    {
+      "login": "bdpx",
+      "name": "Dmitry Buvaylo",
+      "avatar_url": "https://avatars.githubusercontent.com/u/5106532?v=4",
+      "profile": "https://bdpx.github.io",
+      "contributions": [
+        "code",
+        "doc",
+        "example",
+        "maintenance",
+        "projectManagement"
+      ]
+    }
+  ],
+  "contributorsPerLine": 7,
+  "projectName": "postrisc",
+  "projectOwner": "bdpx",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "skipCi": true
+}
