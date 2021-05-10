@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<preface xmlns="http://www.example.com/postrisc">
+<title>The <archname/> architecture</title>
+
+<p>This document describes the architecture of a non-existent <em>virtual</em> processor.
+The processor instruction set architecture and the processor itself are referred to as <strong><archname/></strong>.
+This name is because <quote>POST-RISC</quote> is a common name for projects of hypothetical processors,
+replacing processors with the RISC architecture (Reduced Instruction Set Computer).
+The virtual processor <archname/> combines the best (as it seems to me) qualities of existing and past architectures.
+</p>
+
+<p>Main features of the <archname/> architecture:
+</p>
+
+<ul>
+<li><em>fixed</em> format based on packed bundles of instructions</li>
+<li>a large number of universal registers (128) of 128 bits, for deep loop <em>unrolling</em> and <em>rescheduling</em></li>
+<li><em>register rotation</em> (implemented a general-purpose hardware circular buffer)</li>
+<li><em>load/store</em> architecture with strong separation memory access and computing instructions</li>
+<li>implicit <em>predication</em> (all instructions allow conditional execution under the control of predicate mask)</li>
+<li><em>fused operations</em> (<quote>multiply-add</quote>, shift with addition or subtraction, indexed with scaling and memory access, compare and branch, addition with compare and branch)</li>
+<li><em>position independent code</em> only</li>
+<li><em>vector</em> SIMD-like instructions (128-bit universal registers can be used as vectors of integers or real numbers)</li>
+<li>hardware implementation of 128-bit (quadruple) floats</li>
+<li>additional hardware protection against software vulnerabilities</li>
+</ul>
+
+<p>Sources are available at <link href="https://github.com/bdpx/postrisc">https://github.com/bdpx/postrisc</link>.
+This repository contains source code, sample programs for <archname/>, this description of the virtual processor.
+</p>
+
+<p>To build program cmake and clang++/g++ are needed.
+Use generators "MSYS Makefiles" (Windows) or "Unix Makefiles" (Linux).
+Set -DCMAKE_BUILD_TYPE=Release as default.
+Set -DCMAKE_CXX_COMPILER=g++ or clang++ (MSVC isn't supported).
+To build this documentation from xml sources xsltproc/xmllint needed.
+</p>
+
+<p>If this manual for the instruction set architecture and assembler syntax doesn't match exactly (not yet updated),
+then see this brief automatically generated instruction set manual with information about the syntax of assembler instructions,
+the format of machine instructions, operation codes, statistics for the instruction set:
+</p>
+
+<p><link href="gen.html">gen.html</link></p>
+
+<p>Example program for assembler <archname/> <link href="program.html">program.html</link>
+does nothing sensible but uses all machine instructions and pseudo-instructions of assembler, all sections of the program, all addressing modes,
+and its only meaning is joint testing of assembler, disassembler, emulator in the process of writing them.
+It is a concatenation if separate little tests.
+</p>
+
+<p>The resulting binary program may be disassembled: <link href="out_diz.txt">out_diz.txt</link> and <link href="out_dump.txt">out_dump.txt</link> (with reported binary representation).
+</p>
+
+<p>The results: <link href="result.txt">result.txt</link>. And full system dump: <link href="dump.html">dump.html</link>.
+</p>
+
+<p>The author is grateful in advance for reporting errors and inaccuracies in the virtual processor description and in the source code (which is far from error-free).
+</p>
+
+</preface>

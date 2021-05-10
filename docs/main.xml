@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<!--
+one file - one chapter
+xmlns="http://www.example.com/postrisc
+-->
+
+<prebook>
+<myinclude>preface.xml</myinclude>
+<myinclude>intro.xml</myinclude>
+<myinclude>isa.xml</myinclude>
+<myinclude>cpu.xml</myinclude>
+<myinclude>exceptions.xml</myinclude>
+<myinclude>register_stack.xml</myinclude>
+<myinclude>predication.xml</myinclude>
+<myinclude>physical_memory.xml</myinclude>
+<myinclude>virtual_memory.xml</myinclude>
+<myinclude>fpu.xml</myinclude>
+<myinclude>extended.xml</myinclude>
+<myinclude>abi.xml</myinclude>
+<myinclude>interrupts.xml</myinclude>
+<myinclude>pic.xml</myinclude>
+<myinclude>debug.xml</myinclude>
+<myinclude>pal.xml</myinclude>
+<myinclude>llvm.xml</myinclude>
+</prebook>
