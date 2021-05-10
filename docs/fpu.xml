@@ -1,0 +1,1263 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<chapter xmlns="http://www.example.com/postrisc" id="fpu">
+<title>The floating-point facility</title>
+
+<preface>
+
+<p>This chapter describes the floating-point and vector subsystem of the virtual processor instruction set.
+</p>
+
+</preface>
+
+<section id="fpu_formats">
+<title>Floating-point formats</title>
+
+<p><def>IEEE Standard for Binary Floating-Point Arithmetic (ANSI/IEEE 754-1985)</def>
+defines two floating-point formats <ndash/> single and double precision, in two groups <ndash/> main and advanced.
+The architecture supports all four formats according to IEEE terminology: basic single and double formats and extended dual format.
+The basic dual format serves simultaneously as an extended single format.
+</p>
+
+<p>The architecture defines the representation of floating-point values in four different fixed-length binary formats.
+The format can be
+16-bit for <type>half-float</type> precision values,
+32-bit for <type>single</type> precision values,
+64-bit for <type>double</type> precision values,
+128-bit for <type>quadruple</type> precision values.
+Values in each format are composed of three fields: sign bit (S), exponent (E), fractional part or mantissa (F).
+</p>
+
+<reg_table>
+<caption>float number format - half</caption>
+<bits16/>
+<tr>
+<td class="mod">S</td>
+<td class="tdb" colspan="5">Exp</td>
+<td class="imm" colspan="10">Fraction</td>
+</tr>
+</reg_table>
+
+<reg_table>
+<caption>float number format - single</caption>
+<bits16/>
+<tr>
+<td class="mod">S</td>
+<td class="tdb" colspan="8">Exp</td>
+<td class="imm" colspan="7">Fraction</td>
+</tr>
+<tr><td class="imm" colspan="16">Fraction</td></tr>
+</reg_table>
+
+<reg_table>
+<caption>float number format - double</caption>
+<bits16/>
+<tr>
+<td class="mod">S</td>
+<td class="tdb" colspan="11">Exp</td>
+<td class="imm" colspan="4">Fraction</td>
+</tr>
+<tr><td class="imm" colspan="16">Fraction</td></tr>
+<tr><td class="imm" colspan="16">Fraction</td></tr>
+<tr><td class="imm" colspan="16">Fraction</td></tr>
+</reg_table>
+
+<reg_table>
+<caption>float number format - quadruple</caption>
+<bits16/>
+<tr>
+<td class="mod">S</td>
+<td class="tdb" colspan="15">Exp</td>
+</tr>
+<tr><td class="imm" colspan="16">Fraction</td></tr>
+<tr><td class="imm" colspan="16">Fraction</td></tr>
+<tr><td class="imm" colspan="16">Fraction</td></tr>
+<tr><td class="imm" colspan="16">Fraction</td></tr>
+<tr><td class="imm" colspan="16">Fraction</td></tr>
+<tr><td class="imm" colspan="16">Fraction</td></tr>
+<tr><td class="imm" colspan="16">Fraction</td></tr>
+</reg_table>
+
+<p>Single precision numbers occupy four adjacent bytes of memory, starting with an arbitrary address multiple of 4.
+Double precision numbers occupy eight adjacent bytes of memory, starting with an arbitrary address multiple of 8.
+Quadruple numbers occupy sixteen contiguous bytes of memory, starting with an arbitrary address multiple of 16.
+</p>
+
+<p>The values   represented within each format are determined by two integer parameters <ndash/>
+the size of the format <var>S</var> and the number of bits of the exponent <var>P</var>.
+All other <ndash/> parameters are derived from these two.</p>
+
+<table>
+<caption>Parameters of the formats of float numbers</caption>
+<thead><tr>
+<th>Format Options</th>
+<th width="12%">Half</th>
+<th width="12%">Single</th>
+<th width="12%">Double</th>
+<th width="12%">Quadruple</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>Format bits B</td>
+<td>16</td>
+<td>32</td>
+<td>64</td>
+<td>128</td>
+</tr><tr>
+<td>Exponent bits P (P<lt/>B)</td>
+<td>5</td>
+<td>8</td>
+<td>11</td>
+<td>15</td>
+</tr><tr>
+<td>Sign bit S (1)</td>
+<td>1</td>
+<td>1</td>
+<td>1</td>
+<td>1</td>
+</tr><tr>
+<td>Fraction bits <def>FB</def>: (B<minus/>P<minus/>1)</td>
+<td>10</td>
+<td>23</td>
+<td>52</td>
+<td>112</td>
+</tr><tr>
+<td>Fraction significant bits (B<minus/>P)</td>
+<td>11</td>
+<td>24</td>
+<td>53</td>
+<td>113</td>
+</tr><tr>
+<td>Significant decimal digits log<sub>10</sub>(2<sup>B<minus/>P</sup>)</td>
+<td>3.311</td>
+<td>7.225</td>
+<td>15.955</td>
+<td>34.016</td>
+</tr><tr>
+<td>Maximum exponent <def>EMAX</def>: (2<sup>P<minus/>1</sup><minus/>1)</td>
+<td>15</td>
+<td>127</td>
+<td>1023</td>
+<td>16383</td>
+</tr><tr>
+<td>Minimum exponent <def>EMIN</def>: <minus/>(2<sup>P<minus/>1</sup><minus/>2)</td>
+<td><minus/>14</td>
+<td><minus/>126</td>
+<td><minus/>1022</td>
+<td><minus/>16382</td>
+</tr><tr>
+<td>Exponent bias (2<sup>P<minus/>1</sup><minus/>1)</td>
+<td>15</td>
+<td>127</td>
+<td>1023</td>
+<td>16383</td>
+</tr><tr>
+<td>Maximum biased exponent <def>EBMAX</def>: (2<sup>P</sup><minus/>1)</td>
+<td>31</td>
+<td>255</td>
+<td>2047</td>
+<td>32767</td>
+</tr><tr>
+<td>bias adjustment 3<times/>2<sup>P–2</sup>
+</td>
+<td>24</td>
+<td>192</td>
+<td>1536</td>
+<td>24576</td>
+</tr>
+</tbody>
+</table>
+
+<p>The following table shows the exact limit values for the three formats decimal places:
+</p>
+
+<table>
+<thead>
+<tr>
+<th>Limit</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>Normalized values</td><td>(<minus/>1)<sup>S</sup><times/>1.F<times/>2<sup>E<minus/>EMAX</sup>
+</td></tr>
+<tr><td>Maximum normalized values</td><td>(2.0<minus/>2<sup><minus/>FB</sup>)<times/>2<sup>EMAX</sup>
+</td></tr>
+<tr><td>Single absolute maximum</td><td>3.40282347e+38
+</td></tr>
+<tr><td>Double absolute maximum</td><td>1.7976931348623158e+308
+</td></tr>
+<tr><td>Quadruple absolute maximum</td><td>1.1897314953572317650857593266280070162e+4932
+</td></tr>
+<tr><td>Minimum normalized values</td><td>1.0<times/>2<sup>EMIN</sup>
+</td></tr>
+<tr><td>Single absolute minimum</td><td>1.17549435e<minus/>38
+</td></tr>
+<tr><td>Double absolute minimum</td><td>2.2250738585072013e<minus/>308
+</td></tr>
+<tr><td>Quadruple absolute minimum</td><td>3.3621031431120935062626778173217526026e<minus/>4932
+</td></tr>
+<tr><td>Subnormalized values</td><td>(<minus/>1)<sup>sign</sup><times/>0.fraction<times/>2<sup>EMIN</sup>
+</td></tr>
+<tr><td>Maximum subnormalized values</td><td>(1<minus/>2<sup><minus/>FB</sup>)<times/>2<sup>EMIN</sup>
+</td></tr>
+<tr><td>Quadruple maximum subnormal</td><td>3.3621031431120935062626778173217519551<times/>10<sup><minus/>4932</sup>
+</td></tr>
+<tr><td>Minimum subnormalized values</td><td>1.0<times/>2<sup>EMIN<minus/>FB</sup>
+</td></tr>
+<tr><td>Single minimum (subnormal)</td><td>1.401298464324817071e<minus/>45 (inaccurate)
+</td></tr>
+<tr><td>Double minimum (subnormal)</td><td>4.940656458412465442e<minus/>324 (inaccurate)
+</td></tr>
+<tr><td>Quadruple minimum (subnormal)</td><td>6.4751751194380251109244389582276465525<times/>10<sup><minus/>4966</sup>
+</td></tr>
+</tbody>
+</table>
+
+<p>The following objects are allowed within each format:</p>
+
+<ul>
+<li>Numbers in the form (<minus/>1) <sup>S</sup> <times/> 2 <sup>E</sup> <times/> b (0) .b (1) b (2 ) <hellip/> b (P-1),
+where S = 0 or 1, E = any integer between E<sub>min</sub> and E<sub>max</sub> inclusive, B (n) = 0 or 1.</li>
+<li>Two infinities - positive and negative</li>
+<li>At least one signal NAN</li>
+<li>At least one silent NAN</li>
+</ul>
+
+<p>NAN <ndash/> short for <quote>not a number</quote> (Not A Number).
+NAN is an IEEE is a binary floating-point representation that is something other than a number.
+NANs come in two forms: <quote>signaling</quote> NANs and <quote>quiet</quote> NANs.
+</p>
+
+<p>Arithmetic with infinities is treated as if the operands are arbitrary
+large amount. Negative infinity is less than any finite number;
+positive infinity is greater than any finite number.
+</p>
+
+<p>Denote:
+S is a sign bit (sign),
+EXP is an exponent with offset, i.e. reduced to unsigned (biased exponent),
+F is a fractional part or mantissa (fraction),
+XXXXX as an arbitrary but non-zero sequence of bits,
+EBMAX is a maximum offset unsigned exponent.
+The value of a float number is interpreted as follows.
+</p>
+
+<p>If EXP = EBMAX (consists of one bit units), then this is a special IEEE value.
+To recognize special values, F. is further investigated.
+If F is not equal to zero, then it is + NAN or <minus/>NAN.
+In particular, if the first bit of the mantissa is 0, then it is a signal NAN (signaled), and if 1 <ndash/> then it is <quote>quiet</quote> NAN.
+If EXP = EBMAX and F = 0, then it is <quote>infinity</quote> + INF or <minus/>INF depending on S.
+If 0 <lt/> EXP <lt/> EBMAX, then this is a finite normalized number.
+If EXP = 0, and the mantissa is not equal to zero, then this is a finite unnormalized number.
+If EXP = 0 and F = 0, then this is +0 or <minus/>0 depending on S.
+</p>
+
+<table>
+<thead><tr>
+<th>Exponent</th>
+<th>Fraction</th>
+<th>IEEE value</th>
+</tr></thead>
+<tbody>
+<tr><td>EBMAX</td><td>0XXXXXX</td><td>QNAN</td></tr>
+<tr><td>EBMAX</td><td>1XXXXXX</td><td>SNAN</td></tr>
+<tr><td>EBMAX</td><td>0</td><td>INF</td></tr>
+<tr><td>0<lt/>E<lt/>EBМAX</td><td>any</td><td>Finite (Normalized): (<minus/>1)<sup>S</sup> <times/> 2<sup>(E<minus/>BIAS)</sup> <times/> 1.F</td></tr>
+<tr><td>0</td><td>XXXXXXX</td><td>Finite (Denormal): (<minus/>1)<sup>S</sup> <times/> 2<sup>(<minus/> EMIN)</sup> <times/> 0.F</td></tr>
+<tr><td>0</td><td>0</td><td><plusmn/>0</td></tr>
+</tbody></table>
+
+<p>Floating-point operations can raise arithmetic exceptions for many reasons,
+including invalid operations, overflow from above or below, division by zero, inaccurate result.
+</p>
+</section>
+
+<section id="spec_ieee">
+<title>Special floating-point values</title>
+
+<p><def>NAN</def> is the abbreviation for the concept of <quote>not a number</quote>.
+NAN is an IEEE bitmap floating-point that represents something other than a number.
+These are the values   that have the maximum value of the offset exponent and non-zero fractional part.
+The sign bit is ignored (NAN is neither positive nor negative), although it can be determined.
+NANs come in two forms: Signaling NANs and Silent NANs.
+If the high bit of the mantissa is zero, then this is a signaled NAN, otherwise a quiet NAN.
+</p>
+
+<p><def>Signaled NAN (SNAN)</def> is used to provide values   for uninitialized variables and for extension arithmetic.
+The signaled NAN reports an invalid operation when it is the operand of an arithmetic operation, and may throw an arithmetic exception.
+The signaled NAN is used to raise a signal exception when such a value appears as the operand of the computational instruction.
+</p>
+
+<p><def>Quiet NAN (QNAN)</def> provides the retrospective diagnostic information
+relative to previous invalid or inaccessible data and results.
+Quiet NANs propagate through almost every operation without generating arithmetic exceptions.
+</p>
+
+<p>QNAN is used to present the results of some invalid operations,
+such as invalid arithmetic operations at infinity or on a NAN,
+when the generation of an exception for an invalid operation is blocked.
+Quiet NANs propagate through all floating-point operations except ordered
+comparisons (LT, LE, GT, GE) and conversions to an integer, otherwise they report exceptions.
+QNAN codes can thus be stored through a sequence of floating-point operations and used to transmit diagnostic information,
+helping to identify the consequences of illegal operations.
+</p>
+
+<p>When QNAN is the result of a floating-point operation,
+because one of the NAN operands or because the QNAN was generated due to a blocked exception on an invalid operation,
+then the following rule applies to determine the NAN with the high bit of mantissa 1, which should be saved as a result.
+If either operand is an SNAN, then the SNAN is returned as the result of the operation.
+Otherwise, if a QNAN is generated due to a prohibition on the exclusion of an invalid operation, then this QNAN is returned as a result.
+If the QNAN is generated as a result, then the QNAN has a positive sign, an exponent of all 1, and the most significant bit of the mantissa 1 (all other 0).
+An instruction that generates a QNAN as a result of an exception ban due to an invalid operation should generate such a QNAN
+(e.g. <hex>0x7FF8000000000000</hex> for <type>double</type>).
+</p>
+
+</section>
+
+<section id="ieee">
+<title>Selection for IEEE options</title>
+
+<p>Floating-point instructions provide a subset of the IEEE standard for binary floating-point arithmetic
+(ANSI/IEEE Standard 754-1985 for Binary Floating-Point Arithmetic).
+The following describes how to create a full implementation of IEEE.
+</p>
+
+<p>Four IEEE rounding modes are supported in hardware: normal, truncation, plus infinity, and minus infinity.
+The hardware supports IEEE enable/disable software traps for special situations.
+Addition, subtraction, multiplication, division, conversion between floating formats are supported in hardware,
+rounding to an integer in floating-point format, conversion between floating and integer formats,
+comparison, square root calculation.
+The remainder of division is supported in software, conversion of binary format to decimal number.
+Copying (possibly with a change in sign) without changing the format is not considered an operation (non-finite numbers are not checked).
+Operations with different formats are not provided, calculations occur with the maximum accuracy available for this vector format.
+</p>
+
+<p>Conversion precision between decimal strings and binary numbers
+floating-point - no less than the requirements of the IEEE standard.
+Depends on the implementation, whether the conversion procedures to decimal format are processed
+any excess numbers (over 9, 17 or 36 digits) as zeros.
+</p>
+
+<p>Overflows above and below, NAN, INF, which the binary to decimal conversion software encounters,
+return strings that define these states.</p>
+
+<p>The hardware supports comparisons of numbers of the same format.
+You can programmatically compare numbers with a different format. The result of the comparison is true or false.
+The hardware supports the required six predicates and the predicate of incomparability of numbers.
+The other 19 optional predicates can be created from comparisons and bitwise operations.
+Infinity is supported in hardware in comparison instructions.</p>
+
+<p>QNANs provide retrospective diagnostic information.
+Copying NAN signals without changing the format doesn't report an invalid exception
+(<mim>merge</mim> instructions also do not check for non-finite numbers.)</p>
+
+<p>The hardware fully supports negative null operands and follows IEEE rules to create negative null results.
+The hardware support bottom overflow and denormal numbers.
+</p>
+
+<!--
+<p>If not for the optional trap, disable bits in fpsr, hardware
+Do not implement IEEE exception trap behavior;
+hardware traps are a subset of the conditions required by IEEE.
+System completion handler (inserted between the hardware and the IEEE user)
+provides the correct IEEE exception behavior.
+-->
+
+<p>Tiny is detected by hardware after rounding,
+and a loss of accuracy is detected by the software as an inaccurate result.</p>
+
+</section>
+
+<section id="fpu_regs">
+<title>Representation of floats in registers</title>
+
+<p>Universal registers with a width of 128 bits each can store in themselves one float number of quadruple precision (quadruple float),
+2 double precision, 4 single precision, 8 half-float precision, or integer vector length of 1, 2, 4 or 8 bytes.
+</p>
+
+<table width="65%">
+<caption>Representation format for real data</caption>
+<tr>
+<td class="bit" colspan="16">register bytes</td>
+</tr><tr>
+<td class="bit">15</td><td class="bit">14</td><td class="bit">13</td><td class="bit">12</td>
+<td class="bit">11</td><td class="bit">10</td><td class="bit">9</td><td class="bit">8</td>
+<td class="bit">7</td><td class="bit">6</td><td class="bit">5</td><td class="bit">4</td>
+<td class="bit">3</td><td class="bit">2</td><td class="bit">1</td><td class="bit">0</td>
+</tr>
+<tr>
+<bitfield size="2">half</bitfield>
+<bitfield size="2">half</bitfield>
+<bitfield size="2">half</bitfield>
+<bitfield size="2">half</bitfield>
+<bitfield size="2">half</bitfield>
+<bitfield size="2">half</bitfield>
+<bitfield size="2">half</bitfield>
+<bitfield size="2">half</bitfield>
+</tr>
+<tr>
+<bitfield size="4">single</bitfield>
+<bitfield size="4">single</bitfield>
+<bitfield size="4">single</bitfield>
+<bitfield size="4">single</bitfield>
+</tr>
+<tr>
+<bitfield size="8">double</bitfield>
+<bitfield size="8">double</bitfield>
+</tr>
+<tr>
+<bitfield size="16">quadruple</bitfield>
+</tr>
+</table>
+
+<p>The special register <reg>fpcr</reg> regulates the execution of material and vector operations.
+It controls the arithmetic rounding mode for all instructions except explicit rounding instructions,
+indicates the allowed traps of the user level, stores the exceptions that have occurred (exceptions),
+stores excepted and masked exceptions.</p>
+
+<reg_table>
+<caption>FPU control register format</caption>
+<bits32/>
+<reg_row>
+    <td class="mod" colspan="8">IEEE masked flags</td>
+    <td class="mod" colspan="8">IEEE masked traps</td>
+    <td class="mod" colspan="8">IEEE nonmasked traps</td>
+    <td class="mod" colspan="8">control bits</td>
+</reg_row>
+<reg_row>
+<reserved size="2">0</reserved>
+<bitfield>im</bitfield>
+<bitfield>um</bitfield>
+<bitfield>om</bitfield>
+<bitfield>zm</bitfield>
+<bitfield>dm</bitfield>
+<bitfield>vm</bitfield>
+<reserved size="2">0</reserved>
+<bitfield>i</bitfield>
+<bitfield>u</bitfield>
+<bitfield>o</bitfield>
+<bitfield>z</bitfield>
+<bitfield>d</bitfield>
+<bitfield>v</bitfield>
+<reserved size="2">0</reserved>
+<bitfield>i</bitfield>
+<bitfield>u</bitfield>
+<bitfield>o</bitfield>
+<bitfield>z</bitfield>
+<bitfield>d</bitfield>
+<bitfield>v</bitfield>
+<reserved size="2">0</reserved>
+<bitfield>td</bitfield>
+<bitfield>ftz</bitfield>
+<reserved size="2">0</reserved>
+<bitfield size="2">rm</bitfield>
+</reg_row></reg_table>
+
+<table>
+<caption>SF Field Bits</caption>
+<thead><tr>
+<th>bits</th>
+<th>description</th>
+</tr></thead>
+<tbody>
+<tr><cellc>v</cellc><td>Invalid Operation</td></tr>
+<tr><cellc>d</cellc><td>Denormal/Unnormal Operand</td></tr>
+<tr><cellc>z</cellc><td>Zero Divide</td></tr>
+<tr><cellc>o</cellc><td>Overflow</td></tr>
+<tr><cellc>u</cellc><td>Underflow</td></tr>
+<tr><cellc>i</cellc><td>Inexact result</td></tr>
+<tr><cellc>td</cellc><td>Traps disabled</td></tr>
+<tr><cellc>rm</cellc><td>Rounding mode</td></tr>
+<tr><cellc>ftz</cellc><td>Flush-to-Zero mode (zeroing without underflow)</td></tr>
+</tbody>
+</table>
+
+<p>The <var>rm</var> (rounding mode) bits control the rounding mode of the results.
+The rounding mode doesn't affect the execution of explicit rounding instructions,
+for which only the rounding mode specified directly in the instructions matters.
+</p>
+
+<table>
+<thead><tr>
+<th>Rounding mode (RM)</th>
+<th>Description</th></tr>
+</thead><tbody>
+<tr><cellc>0</cellc><td>Round to nearest (round)</td></tr>
+<tr><cellc>1</cellc><td>Round toward minus infinity (floor)</td></tr>
+<tr><cellc>2</cellc><td>Round toward plus infinity (ceil)</td></tr>
+<tr><cellc>3</cellc><td>Round toward zero (chopping)</td></tr>
+</tbody>
+</table>
+
+<p>The <var>masked flags</var> vector stores a mask of flags allowing IEEE interrupts of the corresponding type.
+The bits of the vectors <var>nonmasked traps</var> and <var>masked traps</var> store flags of the exceptions that occurred.
+the occurrence of which was allowed (or, accordingly, prohibited) in the vector <var>masked flags</var>.
+</p>
+
+<comment>
+<p>The instructions for loading single numbers <type>single</type> or <type>double</type> reorder the bits on the path from memory to register,
+expanding the exponent from 8 (11 for <type>double</type>) to 15 bits, and filling the bits of the least significant bits of the mantissa with zeros.
+The sign bit is simply copied. The following table shows the exponent conversion when expanding the format.
+This mapping preserves normal and exceptional values.
+As a result, the equivalent of <type>quadruple</type> of the number is generated in the register, suitable for any non-vector operations.
+</p>
+
+<table>
+<thead><tr>
+<th>Original single exhibitor</th>
+<th>double exponent</th>
+<th>Description</th>
+</tr></thead>
+<tbody>
+<tr><td>1 1111111</td><td>1 111 1111111</td><td>NAN, INF</td></tr>
+<tr><td>1 XXXXXXX (X is not all 1)</td><td>1,000 XXXXXXX</td><td>ABS (V) <ge/> 2.0</td></tr>
+<tr><td>0 XXXXXXX (X not all 0)</td><td>0 111 XXXXXXX</td><td>ABS (V) <lt/> 2.0</td></tr>
+<tr><td>0 0000000</td><td>0 000 0000000</td><td>0.0 or DEN</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead>
+<tr><th>Original single exponent</th>
+<th>quadruple exhibitor</th>
+<th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td>1 1111111</td><td>1 1111111 1111111</td><td>NAN, INF</td></tr>
+<tr><td>1 XXXXXXX (X is not all 1)</td><td>1 000 000 XXXXXXX</td><td>ABS (V) <ge/> 2.0</td></tr>
+<tr><td>0 XXXXXXX (X, not all 0)</td><td>0 1111111 XXXXXXX</td><td>ABS (V) <lt/> 2.0</td></tr>
+<tr><td>0 0000000</td><td>0 0000000 0000000</td><td>0.0 or DEN</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead>
+<tr><th>Original double exponent</th>
+<th>quadruple exhibitor</th>
+<th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td>1 1111111111</td><td>1 1111 1111111111</td><td>NAN, INF</td></tr>
+<tr><td>1 XXXXXXXXXX (X is not all 1)</td><td>1 0000 XXXXXXXXXX</td><td>ABS (V) <ge/> 2.0</td></tr>
+<tr><td>0 XXXXXXXXXX (X not all 0)</td><td>0 1111 XXXXXXXXXX</td><td>ABS (V) <lt/> 2.0</td></tr>
+<tr><td>0 0000000000</td><td>0 0000 0000000000</td><td>0.0 or DEN</td></tr>
+</tbody>
+</table>
+
+<p>The instructions for loading full vectors do not make any changes.
+Instructions for writing single numbers <type>single</type> or <type>double</type>
+reorder the register bits on the memory path and do rounding with overflow checking.
+An exception is thrown if the contents of the saved register cannot be correctly represented in a shortened form,
+and generation of special material values or denormalization is prohibited.
+Full vector write instructions do not perform any bit permutations or data checks.
+</p>
+</comment>
+
+<p>The <mim>ld_imm_f64</mim> instruction is used to load direct real constants into the registers.
+It allows you to load real constants presented in formats up to extended (80 bits) without loss of accuracy.
+The instruction doesn't allow to set zero values, special values, and has restrictions on the order value (6 bits).
+The instruction stores numbers 28 bits long (or 70 bits for a double instruction).
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>ld_imm_f64</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>target</gpr>
+    <imm>s</imm>
+    <imm size="6">exponent</imm>
+    <imm size="21">mantissa (high 21 bits)</imm>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <imm size="42">mantissa (full 63 bits)</imm>
+</slot>
+</slot_table>
+
+</section>
+
+<section id="fpu_mac">
+<title>Floating-point computational instructions</title>
+
+<p>All computational operations are performed only on registers.
+The basic operation for maximum performance is vector (or scalar) operation <quote>multiply-add</quote> MAC (<em>multiply-accumulate fused</em>).
+Floating-point arithmetic instructions that fuse multiplication with addition and possibly sign change, formed according to the FMAC rule.
+</p>
+
+<slot_table>
+<caption>Ternary <quote>fused</quote> floating-point instruction format</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src1</gpr>
+    <gpr>src2</gpr>
+    <gpr>src3</gpr>
+    <fused_opx>opx</fused_opx>
+</slot>
+</slot_table>
+
+<slot_table>
+<caption>Binary floating-point instruction format</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src1</gpr>
+    <gpr>src2</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<slot_table>
+<caption>Unary floating-point instruction format</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src</gpr>
+    <regzero>0</regzero>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<p>The following table lists these instructions.
+They exist in all variants of <ndash/> <type>single</type>, <type>double</type> or <type>quadruple</type> respectively.
+</p>
+
+<table>
+<caption>Floating point computational instructions</caption>
+<thead>
+<tr>
+<th>Instructions</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr><th colspan="3">Fused instructions</th></tr>
+<tr>
+<td><mim>madd_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>a = b <times/> c + d</td>
+</tr>
+<tr>
+<td><mim>msub_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>a = b <times/> c <minus/> d</td>
+</tr>
+<tr>
+<td><mim>nmadd_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>a = <minus/> b <times/> c + d</td>
+</tr>
+<tr>
+<td><mim>nmsub_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>a = <minus/> b <times/> c <minus/> d</td>
+</tr>
+<tr>
+<td><mim>madd_alt_[vf16|vf32|vf64]</mim></td>
+<td>ax = bx <times/> c.x + dx, ay = by <times/> cy <minus/> dy</td>
+</tr>
+<tr>
+<td><mim>msub_alt_[vf16|vf32|vf64]</mim></td>
+<td>ax = bx <times/> cx <minus/> dx, ay = by <times/> c.y + dy</td>
+</tr>
+<tr>
+<td><mim>merge_[f16|f32|f64|f128]</mim></td>
+<td>a = merge b(sign), c(mantissa), d(fraction)</td>
+</tr>
+<tr><th colspan="3">binary instructions</th></tr>
+<tr>
+<td><mim>add[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>a = b + c</td>
+</tr>
+<tr>
+<td><mim>add_horiz[vf16|vf32|vf64]</mim></td>
+<td>ax = b.x + by, ay = c.x + cy</td>
+</tr>
+<tr>
+<td><mim>add_alt[vf16|vf32|vf64]</mim></td>
+<td>ax = b.x + cx, ay = bx <minus/> cy</td>
+</tr>
+<tr>
+<td><mim>nadd_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>a = <minus/> (b + c)</td>
+</tr>
+<tr>
+<td><mim>sub_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>a = b <minus/> c</td>
+</tr>
+<tr>
+<td><mim>sub_horiz_[vf16|vf32|vf64]</mim></td>
+<td>ax = bx <minus/> by, ay = cx <minus/> cy</td>
+</tr>
+<tr>
+<td><mim>sub_alt_[vf16|vf32|vf64]</mim></td>
+<td>ax = bx <minus/> cx, ay = b.x + cy</td>
+</tr>
+<tr>
+<td><mim>abs_diff_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>a = abs (b <minus/> c)</td>
+</tr>
+<tr>
+<td><mim>nabs_diff_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>a = <minus/> abs (b <minus/> c)</td>
+</tr>
+<tr>
+<td><mim>mul_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>a = b <times/> c</td>
+</tr>
+<tr>
+<td><mim>div_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>a = b/c</td>
+</tr>
+<tr>
+<td><mim>min_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>a = min (b, c)</td>
+</tr>
+<tr>
+<td><mim>max_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>a = max (b, c)</td>
+</tr>
+<tr>
+<td><mim>minnum_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>a = minnum (b, c)</td>
+</tr>
+<tr>
+<td><mim>maxnum_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>a = maxnum (b, c)</td>
+</tr>
+<tr>
+<td><mim>abs_min_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>a = min (abs (b), abs (c))</td>
+</tr>
+<tr>
+<td><mim>abs_max_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>a = max (abs (b), abs (c))</td>
+</tr>
+<tr>
+<td><mim>cmp_oeq_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>compare ordered and equal</td>
+</tr>
+<tr>
+<td><mim>cmp_one_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>compare ordered and not-equal</td>
+</tr>
+<tr>
+<td><mim>cmp_olt_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>compare ordered and less</td>
+</tr>
+<tr>
+<td><mim>cmp_oge_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>compare ordered and greater-equal</td>
+</tr>
+<tr>
+<td><mim>cmp_o_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>compare ordered</td>
+</tr>
+<tr>
+<td><mim>cmp_ueq_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>compare unordered or equal</td>
+</tr>
+<tr>
+<td><mim>cmp_une_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>compare unordered or not-equal</td>
+</tr>
+<tr>
+<td><mim>cmp_ult_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>compare unordered or less</td>
+</tr>
+<tr>
+<td><mim>cmp_uge_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>compare unordered or greater-equal</td>
+</tr>
+<tr>
+<td><mim>cmp_u_[f16|vf16|f32|vf32|f64|vf64|f128]</mim></td>
+<td>compare unordered</td>
+</tr>
+<tr>
+<td><mim>class_[f16|f32|f64|f128]</mim></td>
+<td>classify</td>
+</tr>
+<tr><th colspan="3">Conversion to integer</th></tr>
+<tr>
+<td><mim>cvt_i32_[f16|f32|f64|f128]</mim></td>
+<td>convert i32 to floats</td>
+</tr>
+<tr>
+<td><mim>cvt_u32_[f16|f32|f64|f128]</mim></td>
+<td>convert u32 to floats</td>
+</tr>
+<tr>
+<td><mim>cvt_i64_[f16|f32|f64|f128]</mim></td>
+<td>convert i64 to floats</td>
+</tr>
+<tr>
+<td><mim>cvt_u64_[f16|f32|f64|f128]</mim></td>
+<td>convert u64 to floats</td>
+</tr>
+<tr>
+<td><mim>cvt_i128_[f16|f32|f64|f128]</mim></td>
+<td>convert i128 to floats</td>
+</tr>
+<tr>
+<td><mim>cvt_u128_[f16|f32|f64|f128]</mim></td>
+<td>convert u128 to floats</td>
+</tr>
+<tr>
+<td><mim>trunc_[f16|f32|f64|f128]_i32</mim></td>
+<td>convert floats to i32</td>
+</tr>
+<tr>
+<td><mim>trunc_[f16|f32|f64|f128]_u32</mim></td>
+<td>convert floats to u32</td>
+</tr>
+<tr>
+<td><mim>trunc_[f16|f32|f64|f128]_i64</mim></td>
+<td>convert floats to i64</td>
+</tr>
+<tr>
+<td><mim>trunc_[f16|f32|f64|f128]_u64</mim></td>
+<td>convert floats to u64</td>
+</tr>
+<tr>
+<td><mim>trunc_[f16|f32|f64|f128]_i128</mim></td>
+<td>convert floats to i128</td>
+</tr>
+<tr>
+<td><mim>trunc_[f16|f32|f64|f128]_u128</mim></td>
+<td>convert float to u128</td>
+</tr>
+<tr><th colspan="3">Conversion to narrower float with rounding</th></tr>
+<tr>
+<td><mim>cvt.s[s|d|q].sh</mim></td>
+<td>convert float to half-float</td>
+</tr>
+<tr>
+<td><mim>cvt.s[d|q].ss</mim></td>
+<td>convert float to single float</td>
+</tr>
+<tr>
+<td><mim>cvt.sq.sd</mim></td>
+<td>convert float to double float</td>
+</tr>
+<tr><th colspan="3">Extending to wider float instructions</th></tr>
+<tr>
+<td><mim>extend_[f16|f32|f64]_[f32|f64|f128]</mim></td>
+<td>extend to a bigger fp type</td>
+</tr>
+<tr><th colspan="3">Rounding instructions</th></tr>
+<tr>
+<td><mim>ceil_[f16|f32|f64|f128]</mim></td>
+<td>round up</td>
+</tr>
+<tr>
+<td><mim>floor_[f16|f32|f64|f128]</mim></td>
+<td>round down</td>
+</tr>
+<tr>
+<td><mim>roundeven_[f16|f32|f64|f128]</mim></td>
+<td>round even</td>
+</tr>
+<tr>
+<td><mim>round_[f16|f32|f64|f128]</mim></td>
+<td>round away from zero</td>
+</tr>
+<tr>
+<td><mim>trunc_[f16|f32|f64|f128]</mim></td>
+<td>round to zero</td>
+</tr>
+<tr>
+<td><mim>rint_[f16|f32|f64|f128]</mim></td>
+<td>round using current settings, detect inexact</td>
+</tr>
+<tr>
+<td><mim>nearbyint_[f16|f32|f64|f128]</mim></td>
+<td>round using current settings</td>
+</tr>
+<tr><th colspan="3">unary instructions</th></tr>
+<tr>
+<td><mim>neg_[f16|f32|f64|f128]</mim></td>
+<td>floating-point negate value</td>
+</tr>
+<tr>
+<td><mim>abs_[f16|f32|f64|f128]</mim></td>
+<td>floating-point absolute value</td>
+</tr>
+<tr>
+<td><mim>nabs_[f16|f32|f64|f128]</mim></td>
+<td>floating-point negate absolute value</td>
+</tr>
+<tr>
+<td><mim>nabs_[f16|f32|f64|f128]</mim></td>
+<td>floating-point negate absolute value</td>
+</tr>
+<tr>
+<td><mim>rsqrt_[f16|f32|f64|f128]</mim></td>
+<td>floating-point reciprocal square root</td>
+</tr>
+<tr>
+<td><mim>sqrt_[f16|f32|f64|f128]</mim></td>
+<td>floating-point square root</td>
+</tr>
+<tr>
+<td><mim>unpack_high_[vf16|vf32|vf64]</mim></td>
+<td>unpack high half the vector into wider precision vector</td>
+</tr>
+<tr>
+<td><mim>unpack_low_[vf16|vf32|vf64]</mim></td>
+<td>unpack lower half the vector into wider precision vector</td>
+</tr>
+</tbody>
+</table>
+
+<p>The instructions <mim>fcmp</mim> are intended for generating predicates from the results of floating-point comparisons.
+They produce boolean scalar/vectors as a result of real vector comparison.
+Comparison of real numbers is done by elementwise comparison of two vectors and recording the result in the third real vector.
+All bits of the result vector, for elements of which the condition is satisfied, are set to 1, the rest to 0.
+After comparison, you can get a single predicate bit performing respectively conjunction and disjunction of all bits of the result vector.
+</p>
+
+<p>For some instructions, the second operand is replaced with the 7-bit immediate value <param>count</param> from 0 to 127,
+which describes the accuracy of a non-pipelined unary operation,
+e.g. <mim>sqrt</mim> or <mim>rcp</mim>.</p>
+
+<p>The accuracy of executing the instructions <mim>sqrt</mim>, <mim>rcp</mim> and <mim>rsqrt</mim> is indicated by the constant <param>count</param> directly in the instruction.
+The instruction is executed with minimal accuracy at the same time as a regular MAC, without pipeline delays.
+</p>
+
+<p>The instructions for floating-point classification check floating-point value class.
+The floating-point classification instructions use 10-bit immediate mask with flags describing which floating-point value types are meet condition.
+The register value may be classified (normalized, signed, denormal, NaN, INF, etc).
+</p>
+
+<table>
+<thead>
+<tr>
+<th>Classification flag</th>
+<th>Description</th>
+<th>Assembler mnemonic</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>0x01</td><td>Zero</td><td>@zero</td></tr>
+<tr><td>0x02</td><td>Negative</td><td>@neg</td></tr>
+<tr><td>0x04</td><td>Positive</td><td>@pos</td></tr>
+<tr><td>0x08</td><td>Infinity</td><td>@inf</td></tr>
+<tr><td>0x10</td><td>Normalized</td><td>@norm</td></tr>
+<tr><td>0x20</td><td>Denormalized</td><td>@denorm</td></tr>
+<tr><td>0x40</td><td>QNaN (Quiet NaN)</td><td>@qnan</td></tr>
+<tr><td>0x80</td><td>SNaN (Signaling NaN)</td><td>@snan</td></tr>
+</tbody>
+</table>
+
+<slot_table>
+<caption>Format of fp scalar classification instructions</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src</gpr>
+    <stride>uimm10</stride>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+</section>
+
+<section id="fpu_branch">
+<title>Floating-point branch and nullification instructions</title>
+
+<table>
+<caption>FP branch instructions</caption>
+<thead>
+<tr>
+<th>Instructions</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><mim>br_oeq_[f32|f64|f128]</mim></td>
+<td>ordered and equal</td>
+</tr>
+<tr>
+<td><mim>br_one_[f32|f64|f128]</mim></td>
+<td>ordered and not-equal</td>
+</tr>
+<tr>
+<td><mim>br_olt_[f32|f64|f128]</mim></td>
+<td>ordered and less</td>
+</tr>
+<tr>
+<td><mim>br_oge_[f32|f64|f128]</mim></td>
+<td>ordered and greater-or-equal</td>
+</tr>
+<tr>
+<td><mim>br_o_[f32|f64|f128]</mim></td>
+<td>ordered</td>
+</tr>
+<tr>
+<td><mim>br_ueq_[f32|f64|f128]</mim></td>
+<td>unordered or equal</td>
+</tr>
+<tr>
+<td><mim>br_une_[f32|f64|f128]</mim></td>
+<td>unordered or not-equal</td>
+</tr>
+<tr>
+<td><mim>br_ult_[f32|f64|f128]</mim></td>
+<td>unordered or less</td>
+</tr>
+<tr>
+<td><mim>br_uge_[f32|f64|f128]</mim></td>
+<td>unordered or greater-or-equal</td>
+</tr>
+<tr>
+<td><mim>br_u_[f32|f64|f128]</mim></td>
+<td>unordered</td>
+</tr>
+</tbody>
+</table>
+
+<slot_table>
+<caption>Format of fp scalar compare branch instructions</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>src1</gpr>
+    <gpr>src2</gpr>
+    <branch_opx>opx</branch_opx>
+    <branch>simm17x16</branch>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <reserved size="29">0</reserved>
+    <imm size="13">simm30x16</imm>
+</slot>
+</slot_table>
+
+<table>
+<caption>FP nullification instructions</caption>
+<thead>
+<tr>
+<th>Instructions</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><mim>nul_oeq_[f32|f64|f128]</mim></td>
+<td>ordered and equal</td>
+</tr>
+<tr>
+<td><mim>nul_one_[f32|f64|f128]</mim></td>
+<td>ordered and not-equal</td>
+</tr>
+<tr>
+<td><mim>nul_olt_[f32|f64|f128]</mim></td>
+<td>ordered and less</td>
+</tr>
+<tr>
+<td><mim>nul_oge_[f32|f64|f128]</mim></td>
+<td>ordered and greater-or-equal</td>
+</tr>
+<tr>
+<td><mim>nul_osq_[f32|f64|f128]</mim></td>
+<td>ordered</td>
+</tr>
+<tr>
+<td><mim>nul_ueq_[f32|f64|f128]</mim></td>
+<td>unordered or equal</td>
+</tr>
+<tr>
+<td><mim>nul_une_[f32|f64|f128]</mim></td>
+<td>unordered or not-equal</td>
+</tr>
+<tr>
+<td><mim>nul_ult_[f32|f64|f128]</mim></td>
+<td>unordered or less</td>
+</tr>
+<tr>
+<td><mim>nul_uge_[f32|f64|f128]</mim></td>
+<td>unordered or greater-or-equal</td>
+</tr>
+<tr>
+<td><mim>nul_u_[f32|f64|f128]</mim></td>
+<td>unordered</td>
+</tr>
+</tbody>
+</table>
+
+<slot_table>
+<caption>Format of fp scalar compare nullification instructions</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>src1</gpr>
+    <gpr>src2</gpr>
+    <branch_opx>opx</branch_opx>
+    <nmask>dist-no</nmask>
+    <nmask>dist-yes</nmask>
+    <nullify_opx>opx</nullify_opx>
+</slot>
+</slot_table>
+
+</section>
+
+<section id="fpu_logic">
+<title>Logical vector instructions</title>
+
+<p>The instructions for manipulating real registers as bit vectors are independent of the type of data stored in the registers.
+They are intended for conditional movements, operations on bit masks, generation of predicates.
+</p>
+
+<slot_table>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src1</gpr>
+    <gpr>src2</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<table>
+<thead><tr>
+<th>Name</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr><td><mim>vsll</mim></td><td>shift left</td></tr>
+<tr><td><mim>vsrl</mim></td><td>shift right</td></tr>
+<tr><td><mim>vrll</mim></td><td>rotate left</td></tr>
+<tr><td><mim>vrrl</mim></td><td>rotate right</td></tr>
+<tr><td><mim>p1perm</mim></td><td>permute bytes</td></tr>
+<tr><td><mim>lvsr</mim></td><td>vector load for shift left (permutation)</td></tr>
+</tbody></table>
+
+<p>Instruction <mim>vsel</mim> (<miname>vector bitwise select</miname>)
+produces a bitwise selection of two registers based on the contents of the third register,
+where the bit mask is the preliminarily computed result of a logical operation or a comparison operation.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>vsel</mim>, <mim>p1perm</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src1</gpr>
+    <gpr>src2</gpr>
+    <gpr>src3</gpr>
+    <fused_opx>opx</fused_opx>
+</slot>
+</slot_table>
+
+<p>Instructions <mim>dep16</mim> (<miname>vector deposit</miname>) and <mim>srp16</mim>
+(<miname>vector shift right pair</miname>) produce a bitwise selection of two registers.
+The instruction <mim>dep16</mim> takes the first <param>count</param> bit of the result from the first operand register,
+the remaining bits are from the second operand register.
+The instruction <mim>srp16</mim> takes the first <param>count</param> bit of the result from the upper part of the first operand register,
+the remaining bits are from the lower part of the second operand register.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>dep16</mim>, <mim>srp16</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src1</gpr>
+    <gpr>src2</gpr>
+    <bitpos>count</bitpos>
+    <fused_opx>opx</fused_opx>
+</slot>
+</slot_table>
+
+</section>
+
+<section id="fpu_mmx">
+<title>Integer vector operations</title>
+
+<p>These are DSP (digital signal processing) instructions for working with multimedia integer data.
+Instructions are generated according to the FBIN rule (format).
+The first register is the result. The second and third are operands.
+</p>
+
+<slot_table>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src1</gpr>
+    <gpr>src2</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<p>The size of vector data can be 1, 2, 4, and 8 bytes.
+It is possible to carry out calculations with rounding modulo or with saturation (<def>saturate</def>).
+Saturation can be <type>signed</type> or <type>unsigned</type>.
+Modular rounding can be truncated or carried back (<def>carry-out</def>).
+</p>
+
+<table>
+<thead><tr>
+<th>Name</th>
+<th>Description</th>
+<th>Element Size</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><mim>addc*</mim></td><td><miname>add carryout unsigned</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>add*</mim></td><td><miname>add unsigned modulo</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>addo*</mim></td><td><miname>add overflow</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>adds*</mim></td><td><miname>add signed saturate</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>adds*</mim></td><td><miname>add unsigned saturate</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>avg_*</mim></td><td><miname>average signed</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>avg_*</mim></td><td><miname>average unsigned</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>cmp_eq_*</mim></td><td><miname>compare equal</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>cmp_lt_*</mim></td><td><miname>compare less than signed</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>cmp_lt_*</mim></td><td><miname>compare less than unsigned</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>max*</mim></td><td><miname>maximum signed</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>max*</mim></td><td><miname>maximum unsigned</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>min*</mim></td><td><miname>minimum signed</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>min*</mim></td><td><miname>minimum unsigned</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>merge_high_*</mim></td><td><miname>merge high</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>merge_low_*</mim></td><td><miname>merge low</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>rol*</mim></td><td><miname>rotate left</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>ror*</mim></td><td><miname>rotate right</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>sll*</mim></td><td><miname>shift left logical</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>sra*</mim></td><td><miname>shift right alfebraic</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>srl*</mim></td><td><miname>shift right logical</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>subb*</mim></td><td><miname>subtract carryout unsigned</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>sub_sat_*</mim></td><td><miname>subtract unsigned modulo</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>sub_sat_*</mim></td><td><miname>subtract unsigned saturate</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>sub_sat_*</mim></td><td><miname>subtract signed saturate</miname></td><td>1,2,4,8</td></tr>
+<tr><td><mim>pack_mod_*</mim></td><td><miname>pack signed as signed modulo</miname></td><td>2,4,8</td></tr>
+<tr><td><mim>pack_sat_*</mim></td><td><miname>pack signed as signed saturate</miname></td><td>2,4,8</td></tr>
+<tr><td><mim>pack_mod_*</mim></td><td><miname>pack signed as unsigned modulo</miname></td><td>2,4,8</td></tr>
+<tr><td><mim>pack_sat*</mim></td><td><miname>pack signed as unsigned saturate</miname></td><td>2,4,8</td></tr>
+<tr><td><mim>pack_mod_*</mim></td><td><miname>pack unsigned as unsigned modulo</miname></td><td>2,4,8</td></tr>
+<tr><td><mim>pack_usat_*</mim></td><td><miname>pack unsigned as unsigned saturate</miname></td><td>2,4,8</td></tr>
+<tr><td><mim>unpack_high_*</mim></td><td><miname>unpack high signed</miname></td><td>1,2,4</td></tr>
+<tr><td><mim>unpack_low_*</mim></td><td><miname>unpack low signed</miname></td><td>1,2,4</td></tr>
+</tbody>
+</table>
+
+<p>In the table, the asterisk<em>*</em> replaces the size of vector elements: 1, 2, 4, 8.
+</p>
+
+</section>
+</chapter>

@@ -1,0 +1,1135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<chapter xmlns="http://www.example.com/postrisc" id="register_stack">
+<title>The register stack</title>
+
+<preface>
+</preface>
+
+<section id="register_rotation">
+<title>Registers rotation</title>
+
+<p>Traditionally (in most architectures) the register file is a global resource, where all registers are visible to all program procedures.
+If the procedure wants to use a register, the contents of this register must be stored in memory, and later restored from memory.
+The work of saving/restoring registers is usually divided between the procedure that makes the call (<em>caller</em>) and the one that is called (<em>callee</em>).
+For example, the first 14 registers out of 32 existing may be required to save caller, then the remaining 18 registers must save callee.
+The optimal split depends on the processor architecture: the number of registers and their universality (orthogonality),
+and for new architectures it is usually determined experimentally by comparing the code effectiveness for different variants,
+based on the analysis of a statistically large codebase.
+</p>
+
+<p>Within one procedure, you can optimize the use of registers well,
+but in the case of several procedures, and especially if they are compiled separately, the use of register resources becomes suboptimal.
+A typical example of extreme inefficiency is recursive procedures.
+Even if the recursive procedure uses only one of the N available registers,
+each recursive call to such a procedure wants to use exactly <em>this</em> specific register,
+therefore, this register is repeatedly spilled/filled, despite the presence of many unused registers.
+</p>
+
+<p>Summing up these arguments, we can say that a significant percentage of all memory accesses are the operations of spilling/filling registers,
+which in essence are not related to useful work.
+This fraction is not very dependent on the total number of registers due to the binding of the procedure code to specific registers.
+So an increase in the number of registers, although it helps to improve the efficiency of large and complex procedures, doesn't help in any way to reduce inter-procedure save and restore registers.
+This proportion grows with an increase in the number of procedures and a decrease in their average size (as is usually the case for object-oriented programming languages).
+</p>
+
+<p>The solution to this problem is to implement hardware <def>registers rotation</def>.
+The registers is no more global resource.
+Each procedure called gets its own working subset of registers.
+The registers saving/restoring is not required while the registers working set of several called procedures fits in the register file.
+</p>
+
+<p>For example, in the <archname/> architecture, a file of 128 general-purpose registers is divided into two subsets:
+up to 120 rotable or stackable registers <reg>r0</reg> - <reg>r119</reg> (locally visible only to the current procedure)
+and 8 static registers <reg>g0</reg> - <reg>g3</reg>, <reg>tp</reg>, <reg>fp</reg>, <reg>sp</reg>, <reg>gz</reg> (globally visible to all procedures).
+The mechanism of the register stack is implemented through the circular renaming of registers as a side effect of procedure calls and returns from procedures.
+The renaming mechanism is not visible to the program.
+There 128 rotate registers in the hardware circular buffer, which allows an easy way to cyclically calculate the remainder.
+In total, the general-purpose logical file of registers has 136 (128 + 8) registers, of which up to 128 maximum are simultaneously available to the program.
+</p>
+
+<p>Static registers must be maintained and restored at the procedure boundary in accordance with programmatic conventions (APIs).
+Stackable registers are automatically saved and restored by the corresponding hardware mechanism without the explicit participation of the program.
+All other register files are visible for all procedures and must be saved/restored programmatically in accordance with program agreements.
+</p>
+
+<table width="96%">
+<caption> General Purpose Registers (Hardware Model)</caption>
+<thead> <tr>
+<th width="85%" colspan="25">circular register buffer (128)</th>
+<th width="15%">Global (8)</th>
+</tr></thead> <tbody>
+<tr>
+<td class="imm" colspan="8" width="32%">local A</td>
+<td class="tdz" colspan="17" width="68%">not available</td>
+<td class="tdb"> global</td>
+</tr> <tr>
+<td class="tdz" colspan="6" width="24%">not available</td>
+<td class="imm" colspan="7" width="28%">local B</td>
+<td class="tdz" colspan="12" width="48%">not available</td>
+<td class="tdb"> global</td>
+</tr> <tr>
+<td class="tdz" colspan="11" width="44%">not available</td>
+<td class="imm" colspan="5" width="20%">local C</td>
+<td class="tdz" colspan="9" width="36%">not available</td>
+<td class="tdb"> global</td>
+</tr> <tr>
+<td class="imm" colspan="5" width="20%">local D (cont)</td>
+<td class="tdz" colspan="9" width="36%">not available</td>
+<td class="imm" colspan="11" width="44%">local D</td>
+<td class="tdb"> global</td>
+</tr> <tr>
+<td class="tdz" colspan="4" width="16%">not available</td>
+<td class="imm" colspan="8" width="32%">local E</td>
+<td class="tdz" colspan="13" width="52%">not available</td>
+<td class="tdb"> global</td>
+</tr>
+</tbody></table>
+
+<p>The above diagram shows the process of using the hardware buffer of local rotate registers.
+Five procedures A, B, C, D, E call each other, pass call arguments through the register buffer, place their local variables in the buffer.
+As the hardware circular buffer is exhausted (in procedure D), the registers are flushed onto the stack in memory and the buffer is reused from the beginning.
+Of course, not the entire buffer is discarded, but the necessary count to create a new frame.
+</p>
+
+<table width="85%">
+<caption> Register buffer (dividing into parts, looped back)</caption>
+<tr>
+<td class="opx" colspan="10"> clean</td>
+<td class="qpr" colspan="30"> dirty</td>
+<imm size="24"> local</imm>
+<td class="spr" colspan="14"> invalid</td>
+<td class="opx" colspan="10"> clean</td>
+</tr>
+</table>
+
+<p>In general, the register buffer contains the following five parts (order matters):
+</p>
+
+<table>
+<caption>Register ring buffer parts</caption>
+<thead><tr>
+<th>Part</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>clean</td>
+<td>these registers belong to inactive frames and have already been flushed to the stack in memory,
+but have not yet been used by other frames (if there is an advanced reset of registers to memory or advanced recovery from memory)</td>
+</tr>
+<tr>
+<td>dirty</td>
+<td>these registers belong to inactive frames and have not yet been flushed to the stack in memory
+(obligatory dumping to memory is required before using under other frames)</td>
+</tr>
+<tr>
+<td>local</td>
+<td>these are local registers of the active frame</td>
+</tr>
+<tr>
+<td>invalid</td>
+<td>is garbage left over from past procedure calls, or registers that have never been used
+(can be used to expand the current active frame, to create a new active frame,
+or to expand the zone of clean-registers when returning from procedures or when reading registers from memory ahead of time)</td>
+</tr>
+</tbody>
+</table>
+
+<table width="86%">
+<caption>General purpose registers (visible to the program model)</caption>
+<thead><tr>
+<th width="85%" colspan="20">Local (120)</th>
+<th width="15%">Global (8)</th>
+</tr></thead>
+<tbody>
+<tr><imm size="8" width="40%">local A</imm><reserved size="12">not available</reserved><td class="tdb">global</td></tr>
+<tr><imm size="7" width="35%">local B</imm><reserved size="13">not available</reserved><td class="tdb">global</td></tr>
+<tr><imm size="5" width="25%">local C</imm><reserved size="15">not available</reserved><td class="tdb">global</td></tr>
+<tr><imm size="16" width="80%">local D</imm><reserved size="4">not available</reserved><td class="tdb">global</td></tr>
+<tr><imm size="8" width="40%">local E</imm><reserved size="12">not available</reserved><td class="tdb">global</td></tr>
+</tbody></table>
+
+<p>Each procedure <quote>sees</quote> only its local registers, and the first physical local register is visible under the logical number <reg>r0</reg>.
+</p>
+
+<p>The diagram below shows an example of working with the register stack.
+First, we have a register frame for the current function of 17 registers (<reg>r0</reg> - <reg>r16</reg>).
+The last 5 of them (<reg>r12</reg> - <reg>r16</reg>) the function uses to place the parameters for calling the next function.
+The return address when calling will fall into the first register parameter (<reg>r12</reg>),
+as well as the number of stored registers and output frame size (12, 5) - these two numbers can be packed together with return address in link register.
+This register number for the return address, as the boundary between the stored registers and the output parameters, is indicated in the call instructions.
+</p>
+
+<p>After the call, the second function has at its disposal a register frame of 5 registers.
+The return address is visible in the register <reg>r0</reg>.
+Then the second function expands its register frame to the required number of registers for local computing (up to 10 registers).
+</p>
+
+<p>After completion of work, the second function restores the saved part of the frame of the first function, and gives the parameter registers back to it.
+The number of registers to be returned is indicated in the instructions for returning from the function,
+and, according to ABI, it must match the number of incoming parameter registers.
+</p>
+
+<table width="75%">
+<thead><tr>
+<th>physical numbering</th>
+<th>caller function registers</th>
+<th>callee registers immediately after the call (input parameters)</th>
+<th>callee extends the register frame</th>
+<th>caller registers after returning</th>
+</tr></thead>
+<tbody>
+<tr><td class="gpr">0</td>
+<reserved rowspan="4">are hidden</reserved>
+<reserved rowspan="16">are hidden</reserved>
+<reserved rowspan="16">are hidden</reserved>
+<reserved rowspan="4">are hidden</reserved></tr>
+<tr><td class="gpr">1</td></tr>
+<tr><td class="gpr">2</td></tr>
+<tr><td class="gpr">3</td></tr>
+<tr><td class="gpr">4</td><td class="gpr">r0</td><td class="gpr">r0</td></tr>
+<tr><td class="gpr">5</td><td class="gpr">r1</td><td class="gpr">r1</td></tr>
+<tr><td class="gpr">6</td><td class="gpr">r2</td><td class="gpr">r2</td></tr>
+<tr><td class="gpr">7</td><td class="gpr">r3</td><td class="gpr">r3</td></tr>
+<tr><td class="gpr">8</td><td class="gpr">r4</td><td class="gpr">r4</td></tr>
+<tr><td class="gpr">9</td><td class="gpr">r5</td><td class="gpr">r5</td></tr>
+<tr><td class="gpr">10</td><td class="gpr">r6</td><td class="gpr">r6</td></tr>
+<tr><td class="gpr">11</td><td class="gpr">r7</td><td class="gpr">r7</td></tr>
+<tr><td class="gpr">12</td><td class="gpr">r8</td><td class="gpr">r8</td></tr>
+<tr><td class="gpr">13</td><td class="gpr">r9</td><td class="gpr">r9</td></tr>
+<tr><td class="gpr">14</td><td class="gpr">r10</td><td class="gpr">r10</td></tr>
+<tr><td class="gpr">15</td><td class="gpr">r11</td><td class="gpr">r11</td></tr>
+<tr><td class="gpr">16</td><td class="gpr">r12</td><td class="gpr">r0</td><td class="gpr">r0</td><td class ="gpr">r12</td></tr>
+<tr><td class="gpr">17</td><td class="gpr">r13</td><td class="gpr">r1</td><td class="gpr">r1</td><td class ="gpr">r13</td></tr>
+<tr><td class="gpr">18</td><td class="gpr">r14</td><td class="gpr">r2</td><td class="gpr">r2</td><td class ="gpr">r14</td></tr>
+<tr><td class="gpr">19</td><td class="gpr">r15</td><td class="gpr">r3</td><td class="gpr">r3</td><td class ="gpr">r15</td></tr>
+<tr><td class="gpr">20</td><td class="gpr">r16</td><td class="gpr">r4</td><td class="gpr">r4</td><td class ="gpr">r16</td></tr>
+<tr><td class="gpr">21</td>
+<reserved rowspan="10">not available</reserved>
+<reserved rowspan="10">not available</reserved><td class="gpr">r5</td>
+<reserved rowspan="10">not available</reserved></tr>
+<tr><td class="gpr">22</td><td class="gpr">r6</td></tr>
+<tr><td class="gpr">23</td><td class="gpr">r7</td></tr>
+<tr><td class="gpr">24</td><td class="gpr">r8</td></tr>
+<tr><td class="gpr">25</td><td class="gpr">r9</td></tr>
+<tr><td class="gpr">26</td><reserved rowspan="5">not available</reserved></tr>
+<tr><td class="gpr">27</td></tr>
+<tr><td class="gpr">28</td></tr>
+<tr><td class="gpr">29</td></tr>
+<tr><td class="gpr">30</td></tr>
+</tbody></table>
+
+<p>special register <regname>register stack control</regname> (<reg>rsc</reg>) stores information about the status of the circular register buffer,
+and the current active frame of local general purpose registers.
+</p>
+
+<reg_table>
+<caption> Register format <reg>rsc</reg></caption>
+<bits64/>
+<reg_row>
+    <reserved size="32">0</reserved>
+    <bitfield size="8">ndirty</bitfield>
+    <bitfield size="8">soc</bitfield>
+    <bitfield size="8">bof</bitfield>
+    <bitfield size="8">sof</bitfield>
+</reg_row>
+</reg_table>
+
+<p>Four fields hidden from direct access store the positions and sizes of register portions local to the rotation buffer.
+Their sizes depend on the implementation (register ring buffer size), except for <regfield>sof</regfield> whose size is always 7 bits.
+So, for example, for a buffer of 128 registers, the number of bits for each position is 7, for 256 is 8.
+Field <regfield>sof</regfield> (size of frame) is the size of the last active frame (possibly empty),
+Field <regfield>bof</regfield> (bottom of frame) is the position in the buffer of the beginning of the last active frame and border with the <em>dirty</em> section,
+Field <regfield>soc</regfield> (size of clean) is the size of the <em>clean</em> section,
+The <regfield>ndirty</regfield> field is the number of <em>dirty</em> registries.
+</p>
+
+<p>The special <regname>register stack pointer</regname> (<reg>rsp</reg>) contains the memory address,
+where the next local register should be saved when the hardware circular register buffer is full.
+Since the address must be aligned on an 16-byte register size boundary for register spilling/filling,
+then the lower 4 bits of the register <reg>rsp</reg> are always zero, the writing them is ignored.
+A specific architecture implementation can spill/fill the registers in aligned groups of 2-16 registers at a time to optimize the work with memory,
+so the additional least significant bits of the register may be fixed as zero.
+</p>
+
+<reg_table>
+<caption>Register format <reg>rsp</reg></caption>
+<bits64/>
+<reg_row>
+    <imm size="58">address</imm>
+    <reserved size="2">0</reserved>
+    <reserved size="4">0</reserved>
+</reg_row>
+</reg_table>
+
+<p>In the Berkeley RISC research project, where register rotation was first applied (?), only eight of the 64 existing registers were visible to the program.
+A full set of 64 registers is called the <em>register file</em>, and a portion of eight <ndash/> <em>register window</em>.
+The file allows up to eight procedure calls with their own sets of registers.
+Until the program calls a chain longer than eight calls, the registers never had to be stored in RAM,
+which is scary slow compared to register access.
+For many programs, a chain of six calls is enough.
+</p>
+
+<p>A direct descendant of the RISC Berkeley project is Sun Microsystems' SPARC (UltraSPARC) architecture. Compared to the prototype,
+this processor provides the simultaneous visibility of four sets of eight registers each (has 32 simultaneously visible registers).
+Of these, 8 are global and 24 are windowed.
+Three sets, eight registers each, are implemented as a <quote>register window</quote>.
+The eight registers <reg>i0</reg><hellip/><reg>i7</reg> are input to the current procedure,
+eight registers <reg>l0</reg><hellip/><reg>l7</reg> are local to the procedure of the current level,
+and eight registers <reg>o0</reg><hellip/><reg>o7</reg> are the output for calling the next level procedure.
+When a new procedure is called, the register window shifts to sixteen registers,
+hiding old input registers and old local registers,
+and making the output registers of the current procedure the input registers of the new procedure.
+Additionally, eight registers <reg>g0</reg><hellip/><reg>g7</reg> are globally visible to procedures at all levels.
+</p>
+
+<p>The size of the frame and the number of output registers, unfortunately, are fixed in SPARC.
+It's also bad that flashing registers pushed from the stack into memory is implemented through interrupts,
+and the fact that the dumping place is not separated from the regular stack of automatic objects.
+</p>
+
+<p>In the AMD 29000 architecture (64 global and 128 window visible registers), the register rotation design was further refined with variable-sized windows,
+which helps resource utilization in the general case, when fewer than eight registers are needed to call the procedure.
+A <em>second</em> separate stack for saving registers was also implemented.
+</p>
+
+<p>Register rotation was used in the architecture of Intel 80960 (i960) processors for embedded applications
+(32 visible registers, of which 16 global and 16 windowed, with a fixed rotation step of 16 registers).
+</p>
+
+<p>The last (of implemented) known processor that uses register rotation is <em>Intel Itanium</em> (IA64 architecture).
+It has 128 registers, of which 32 are static and 96 are windowed.
+It is possible to set a frame of any size from 0 to 96 registers with any number of output registers.
+To spill registers into memory without processor interrupting, an asynchronous hardware mechanism is implemented.
+The spill occurs on a separate (second) stack, which grows towards the main stack and is not visible to the user program explicitly.
+Both stacks share the same memory array.
+</p>
+
+<p>The rotation of the registers is also applied in the new architecture of the educational processor MMIX,
+which replaced the legacy MIX processor in examples for new editions of Donald Knuth's book <quote>The Art of Programming</quote>.
+MMIX architecture has a register file of 256 registers visible to the program, allows using the variable window size of visible registers,
+and even allows to change the boundary between the global and rotate registers visible to the program dynamically,
+which is usually not used in real architectures.
+</p>
+
+</section>
+
+<section id="call_instructions">
+<title>Call/return instructions</title>
+
+<p>Because the <archname/> architecture uses hardware register rotation,
+then the call/return instructions execution is closely related to the operation of the circular buffer of local registers.
+When the procedure is called, the current frame of local registers is partially saved,
+when returning from the procedure, the previous frame is restored.
+</p>
+
+<p>The <archname/> may be extended in the future by big-SIMD facilities (256 or even 512 bit) using register pairs/groups for SIMD.
+Such SIMD register pairs/groups shouldn't cross a register frame boundary.
+The register frame base (bottom of frame) and the preserved frame size should be a multiple of register pair/group (2 or 4) to guarantee SIMD register pairs/groups alignment.
+The link info may be stored only in the even (or multiple 4) register to guarantee register pairs alignment.
+Currently, only 2-register alignment is required for frame size.
+</p>
+
+<p>Procedure call instructions <mim>call</mim>, <mim>call_ri</mim>, <mim>call_mi</mim>, <mim>call_rvt</mim>, <mim>call_plt</mim> perform similar actions.
+They vary by way of computing the target call address only.
+</p>
+
+<p>The first argument for all call instructions is the register in which the return address and other link info will be stored.
+All local registers starting from <reg>r0</reg>  with lower numbers up to it exclusively will be hidden after the register window rotation.
+All local registers, starting from the register specified in the instructions and with greater numbers,
+that are currently allocated will become the initial frame of the new procedure.
+</p>
+
+<p>Then, the branch effective address is calculated (differently for different instructions).
+The return address along with the current frame info is stored in the return register.
+</p>
+
+<p>Then the register window is rotated, the frame of local registers is partially saved, and the branch to the target address is performed.
+The new procedure always sees its return address and previous frame info in the first rotated register <reg>r0</reg>,
+and the input parameters in the following registers <reg>r1</reg>, <reg>r2</reg> ...
+</p>
+
+<reg_table>
+<caption>Link register format <reg>r0</reg></caption>
+<bits64/>
+<reg_row>
+    <imm size="60">return address</imm>
+    <reserved size="2">0</reserved>
+    <imm size="2">rs</imm>
+</reg_row>
+<reg_row>
+    <imm size="32">preserved caller future</imm>
+    <imm size="18">eip offset</imm>
+    <imm size="7">out-size</imm>
+    <imm size="7">framesize</imm>
+</reg_row>
+</reg_table>
+
+<p>If the call instruction is the last in the bundle,
+call instruction saves the return address as a pointer to the <strong>next bundle</strong> after the current bundle,
+and and the stored slot number <regfield>rs</regfield> is set to zero.
+If the call instruction isn't the last in the bundle, then the current bundle address and the next slot number <regfield>rs</regfield> were saved.
+</p>
+
+<p>In the general case, return to middle of bundle may be less optimal but saves code size.
+The processor anyhow fetch and execute whole bundle, but discards execution of first <regfield>rs</regfield> slots.
+If the slot number points in the middle of a double-slot instruction then fault triggers.
+For better performance, the bundle before call instruction may be filled with dummy <mim>nop</mim> instructions to shift call instruction to the end of bundle.
+There is corresponding compiler option to choose between <quote>dense</quote> and <quote>aligned</quote> calls.
+</p>
+
+<p>For example, dense calls:</p>
+
+<code>ld_imm %r33, 1234    ; r33 is future r1 (param for myfunc)
+call %r32, myfunc    ; r32 is future r0 (link info)
+call %r32, myfunc2
+call %r32, myfunc3
+</code>
+
+<p>For example, aligned call:</p>
+
+<code>ld_imm %r33, 1234    ; r33 is future r1 (param for myfunc)
+nop   0
+call %r32, myfunc    ; r32 is future r0 (link info)
+; this is next bundle and aligned return address
+add_i64 %r34, %r12, %r12    ; next instruction after return from myfunc
+sub_i64 %r14, %r22, %r11
+</code>
+
+<table>
+<caption>Instructions for calling procedures, managing the register frame and the regular stack</caption>
+<thead><tr>
+<th>Instruction</th>
+<th>Description</th>
+</tr></thead>
+<tbody>
+<tr><td><pre><mim>call</mim>     dst,label</pre></td><td><reg>ip</reg>-relative call</td></tr>
+<tr><td><pre><mim>call_ri</mim>  dst,base,index</pre></td><td>call register indirect</td></tr>
+<tr><td><pre><mim>call_mi</mim>  dst,base,simm14</pre></td><td>memory-indirect call, base addressing</td></tr >
+<tr><td><pre><mim>call_rvt</mim> dst,base,simm14</pre></td><td>memory-indirect call, word, base relative addressing</td></tr >
+<tr><td><pre><mim>call_plt</mim> dst,uimm28</pre></td><td>call procedure linkage table: indirect, relative addressing</td></tr>
+<tr><td><pre><mim>alloc</mim>    framesize</pre></td><td>allocate register stack frame</td></tr>
+<tr><td><pre><mim>alloc_sp</mim> framesize,uimm21</pre></td><td>allocate register stack frame, update SP</td></tr>
+<tr><td><pre><mim>ret</mim></pre></td><td>return from the subroutine</td></tr>
+<tr><td><pre><mim>retf</mim>    uimm21</pre></td><td>return from the subroutine, update SP</td></tr>
+</tbody></table>
+
+<p>The instruction <mim>call</mim> makes a procedure call using <reg>ip</reg>-relative addressing using 28-bit immediate signed offset.
+This gives the maximum distance of the <formula><plusmn/>2</formula> GiB to both sides of the current position for a one-word instruction.
+A long form of instruction is also implemented.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>call</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <jump>simm28x16</jump>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <reserved size="10">0</reserved>
+    <imm size="32">simm60x16 (28+32)</imm>
+</slot>
+</slot_table>
+
+<p>EA = <reg>ip</reg> + 16 <times/> simm</p>
+<p>call (EA)</p>
+
+<p>Instruction <mim>call_ri</mim> (<miname>call register indirect</miname>) is the address of the procedure call from the register.
+The branch address is calculated as <param>base</param> plus <param>index</param>.
+The <mim>call_ri</mim> instruction discards the 4 least significant bits of the address, so the call address is always aligned at the beginning of the bundle.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>call_ri</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>base</gpr>
+    <gpr>index</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<p>EA = (<param>base</param> + <param>index</param>) &amp; mask {63:4},</p>
+<p>call (EA)</p>
+
+<p>The instruction <mim>call_mi</mim> (<miname>call memory indirect</miname>) takes the callee address from memory using base+displacement addressing.
+The instruction discards the 4 least significant bits of the loaded value, so that the address always aligned with the beginning of the bundle is always obtained.
+The instruction is intended to load from address table with aditional checks for finalized state of virtual page.
+The vtables should be relocated by linker and set as finalized to disable future access rights changes (hardware-assisted one way relro).
+The 14-bit displacement is enough to support vtables (or other function pointer tables) with up to 1024 64-bit items.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>call_mi</mim>, <mim>call_rvt</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>base</gpr>
+    <mid_binimm>simm14(56)</mid_binimm>
+    <fused_opx>opx</fused_opx>
+</slot>
+</slot_table>
+
+<p>EA = <param>base</param> + sign_extend(simm14)</p>
+<p>EA = mem8 (EA)</p>
+<p>EA = EA &amp; mask {63:4},</p>
+<p>call (EA)</p>
+
+<p>The instruction <mim>call_rvt</mim> (<miname>call relative vtable</miname>) takes the callee relative offset from memory using base+displacement addressing.
+This offset is used to compute callee address relative to base address.
+The instruction discards the 4 least significant bits of the loaded value, so that the address always aligned with the beginning of the bundle is always obtained.
+The instruction is intended to load from address table with aditional checks for finalized state of virtual page.
+The vtables should be relocated by linker and set as finalized to disable future access rights changes (hardware-assisted one way relro).
+The 14-bit displacement is enough to support vtables (or other function pointer tables) with up to 2048 32-bit items.
+</p>
+
+<p>EA = <param>base</param> + sign_extend(<param>simm14</param>)</p>
+<p>offset = mem4(EA)</p>
+<p>EA = (<param>base</param> + offset) &amp; mask {63:4},</p>
+<p>call (EA)</p>
+
+<p>The <mim>call_plt</mim> instruction (<miname>call procedure linkage table</miname>) takes the address of the call from memory using <reg>ip</reg>-relative addressing.
+The instruction discards the 4 least significant bits of the loaded value, so that the address always aligned with the beginning of the bundle is always obtained.
+The instruction is intended to load from address table with aditional checks for finalized state of virtual page.
+The import tables should be relocated by linker and set as finalized to disable future access rights changes (hardware-assisted one way relro).
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>call_plt</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <call>uimm28</call>
+</slot>
+</slot_table>
+
+<p>EA = ip + zero_extend(uimm28)</p>
+<p>EA = mem8 (EA)</p>
+<p>EA = EA &amp; mask {63:4},</p>
+<p>call (EA)</p>
+
+<p>The <mim>ret</mim> and <mim>retf</mim> instructions (<miname>return from subroutine</miname>) is used to return control from the procedure.
+It also restores the caller procedure register window state, and <mim>retf</mim> roll-back fixed-size stack frame.
+</p>
+
+<p>Unlike other branch instructions, these instructions may use special hardware structures to predict the destination branch address.
+If the prediction array <em>branch target buffer</em> is generally used for branch address prediction,
+then for <mim>ret</mim> instructions it can be additionally (for better prediction accuracy) implemented hardware <em>branch target stack</em> as a short stack of saved return addresses.
+</p>
+
+<p>While restoring the previous frame state the <mim>ret</mim> instructions may load part or all of the previous frame from memory if necessary
+(when the circular hardware register buffer overflows).
+Instruction may return control until a complete recovery from memory is completed, but the architecture guarantees
+that attempts to use not yet recovered from memory local registers in the subsequent instructions
+will be delayed until recovery is performed (via the scoreboard mechanism of the registers).
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>ret</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <noargs>opx</noargs>
+</slot>
+</slot_table>
+
+<slot_table>
+<caption>Instruction format <mim>retf</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <raopx>opx</raopx>
+    <regzero>0</regzero>
+    <binimm>uimm21 (63)</binimm>
+</slot>
+</slot_table>
+
+<p>The link register is implicit argument for both ret instructions.
+It is the first current function local register and provides the return address and the previous frame info.
+The argument for <mim>retf</mim> is the displacement which is used for the optional stack rollback (maybe be 0).
+The instruction may cause an error if link register contains a broken frame info
+and there is no place in the local registers for the outgoing and preserved frame parts of the previous procedure
+since the maximum frame size is 120 registers.
+</p>
+
+</section>
+
+<section id="frame_allocation">
+<title>Register frame allocation</title>
+
+<p>Each callee procedure after call obtains the remaining frame part of the calling procedure starting from the link register(the parameters and maybe slightly more).
+If callee wants to increase the size of its register frame it should use the <mim>alloc</mim> (<miname>allocate register stack frame</miname>) instruction.
+The first parameter of the instruction is local register, which will be the last in the frame of our procedure (from <reg>r0</reg> to <reg>r119</reg>).
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>alloc</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <raopx>opx</raopx>
+    <framesize>framesize</framesize>
+    <res21>0</res21>
+</slot>
+</slot_table>
+
+<p>If there is not enough free space in the rotate registers hardware buffer to accommodate a new frame,
+the <mim>alloc</mim> instruction flushes registers from the previous functions frames onto the register stack in memory.
+The instruction can return control before a complete flush is completed, but the architecture guarantees
+that attempts by the subsequent instructions to use local registers not yet flushed to the stack
+will be delayed until the flush (through the scoreboard mechanism of the registers).
+</p>
+
+<p>The new <reg>eip</reg> is set up from <reg>reip</reg>.
+The <reg>reip</reg> should point to simple universal function epilog with just ret instruction.
+This epilog should live in the highest corresponding usermode/kernel region.
+The <reg>reip</reg> should be set up during thread start.
+</p>
+
+<p>The next minimum program for a virtual processor
+demonstrates the use of the <mim>call</mim>, <mim>alloc</mim> and <mim>ret</mim> instructions.
+</p>
+
+<code>.text
+; at the beginning of the program, the register stack is empty
+<mim>alloc</mim>  54   ; expand frame to 54 registers
+<mim>eh_adj</mim>  endfunc
+<mim>ld_imm</mim>   %r47, 1  ; will be saved when called
+<mim>ld_imm</mim>   %r53, 3  ; first argument
+<mim>ld_imm</mim>   %r52, 2  ; second argument
+<mim>ld_imm</mim>   %r51, 1  ; third argument
+; func procedure call, all registers up to 50 will be saved,
+; return address, eip, frame size (50) are saved in r50
+<mim>call</mim>  %r50, func
+; at this point, after returning, the frame will be again 54
+<mim>halt</mim>
+func:
+; at the starting point, the func procedure has a 4-register frame
+; their previous numbers are 50, 51, 52, 53, new - 0, 1, 2, 3
+; extend the frame to 10 registers (plus regs 4,5,6,7,8,9)
+<mim>alloc</mim>  10
+<mim>write</mim>  "r0 = %x128(r0)"    ; print packed return info
+<mim>write</mim>  "r1 = %i64(r1)"    ; print 1st argument
+<mim>write</mim>  "r2 = %i64(r2)"    ; print 2nd argument
+<mim>write</mim>  "r3 = %i64(r3)"    ; print 3rd argument
+<mim>ret</mim>
+endfunc:
+.end</code>
+
+<p>Result of execution:
+</p>
+
+<code>r0 = 000000010000c232_fffffffff1230020
+r1 = 1
+r2 = 2
+r3 = 3
+</code>
+
+<p>Here:
+0xfffffffff1230020 - return bundle address,
+0x0000c232 - packed: previous frame size (50 registers), and output frame size (3 parameters and link),
+offset between return address and previous eip exception return address (endfunc label).
+0x00000001 - previous future mask, nonzero because <mim>call</mim> is a middle from 3 instructions in the bundle, so we return to the bundle middle and skip one instruction.
+</p>
+
+<p>The instruction <mim>alloc_sp</mim> is introduced for code compression.
+Its function similar to <mim>alloc</mim>, but additionally it push usual stack.
+The <mim>alloc_sp</mim> adiust <reg>sp</reg> down by immediate size.
+</p>
+
+<code><mim>alloc</mim>    framesize
+<mim>alloc_sp</mim> framesize, uimm21</code>
+
+<slot_table>
+<caption>Instruction format <mim>alloc_sp</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <raopx>opx</raopx>
+    <framesize>framesize</framesize>
+    <binimm>uimm21 (63)</binimm>
+</slot>
+</slot_table>
+
+</section>
+
+<section id="function_plolog_epilog">
+<title>The function prolog/epilog</title>
+
+<p>The type of prolog/epilog depend on:</p>
+
+<ul>
+<li>if instructions inside function may generate software/hardware exceptions</li>
+<li>if function need to allocate local registers</li>
+<li>if function need to allocate fixed-size stack frame</li>
+<li>if function need to allocate fixed-size stack frame more than pagesize</li>
+<li>if function need to extend stack frame with variable size (using variable length arrays or alloca function)</li>
+</ul>
+
+<p>In the examples below r1<hellip/>r5 are arguments, and r6<hellip/>r10 are optional local registers.
+The frame stack grows from up to down addresses.
+</p>
+
+<p>The simplest function which doesn't allocate local registers (uses arguments only) and doesn't allocate stack frame.
+All instructions inside function don't generate software/hardware exceptions (never touch memory, divide, etc).
+Then it's enough just:
+</p>
+
+<code><mim>insn</mim>    # can't fail, can use only args r1..r5
+...
+<mim>insn</mim>    # can't fail, can use only args r1..r5
+<mim>ret</mim>
+</code>
+
+<p>The next function can generate software/hardware exceptions but doesn't allocate local registers (uses arguments only) and doesn't allocate stack frame.
+Here in case of exception control can be transferred to <reg>eip</reg>, so we need proper <reg>eip</reg> before execution.
+</p>
+
+<p>The special register <reg>reip</reg> is introduced to not blow code with multiple copies of standard universal epilog which consists from only ret instruction.
+It stores the address of such epilog.
+The proper initialization of <reg>reip</reg> to avalable standard universal epilog is at runtime at thread start.
+</p>
+
+<p>Each call instruction setup <reg>eip</reg> by <reg>reip</reg> copy, so we won't worry about proper <reg>eip</reg> just after call.
+So even if instructions may fail, we don't need additional setup at function start.
+</p>
+
+<code><mim>insn</mim>    # can fail, can use only args r1..r5
+...
+<mim>insn</mim>    # can fail, can use only args r1..r5
+<mim>ret</mim>
+</code>
+
+<p>The next function doesn't allocate stack frame but allocate local registers.
+The alloc instruction here does the local registers allocation.
+The register allocation may trigger register spilling to memory so may fail and trigger hardware exception.
+But again, because <reg>eip</reg> stores the copy of <reg>reip</reg>, we won't worry about <reg>eip</reg>.
+</p>
+
+<code><mim>alloc</mim>   11
+<mim>insn</mim>    # can fail, can use r1..r5 and r6..r10
+...
+<mim>ret</mim>
+</code>
+
+<p>The next function allocates local registers and allocates the fixed-size stack frame.
+In this case we need to set new eip before execution to the label before return for proper traditional stack unwinding.
+The stack frame should be no bigger than pagesize, so we don't touch next page after the stack guard page.
+</p>
+
+<code><mim>st_i64</mim>     %gz, %sp, -frame_size_immediate # touch new stack frame
+<mim>alloc_sp</mim> 11, frame_size_immediate
+<mim>eh_adj</mim>   before_return   # immediately after alloc_sp
+...
+<mim>insn</mim>    # can fail, can use r1..r10
+<mim>ld_u32</mim>    %r7, %sp, +offset # using sp for local frame addressing
+...
+before_return:
+<mim>add_imm_i64</mim>    %sp, %sp, frame_size_immediate
+<mim>ret</mim>
+</code>
+
+<p>The next function allocates local registers and allocates the fixed-size stack frame.
+The stack frame is bigger than pagesize so proper guard-page extension via store probing is required.
+</p>
+
+<code># guard page probing for frame size bigger than pagesize
+<mim>st_i64</mim>     %gz, %sp, -page_size * 1
+<mim>st_i64</mim>     %gz, %sp, -page_size * 2
+...
+<mim>st_i64</mim>     %gz, %sp, -page_size * n
+# allocation only after probing
+<mim>alloc_sp</mim> 11, frame_size_immediate
+<mim>eh_adj</mim>   before_return   # immediately after alloc_sp
+...
+<mim>insn</mim>    # can fail, can use r1..r10
+<mim>ld_u32</mim>    %r7, %sp, +offset # using sp for local frame addressing
+...
+before_return:
+<mim>add_imm_i64</mim>    %sp, %sp, frame_size_immediate
+<mim>ret</mim>
+</code>
+
+<p>The before_return block:</p>
+
+<code>...
+before_return:
+<mim>add_imm_i64</mim>    %sp, %sp, frame_size_immediate
+<mim>ret</mim>
+</code>
+
+<p>may be changed to one <mim>retf</mim> instruction:</p>
+
+<code>...
+before_return:
+<mim>retf</mim>    frame_size_immediate
+</code>
+
+<p>and, if there is a space in previous bundle, then <mim>retf</mim> may be copied into it,
+and before_return block may be potentially amortized once for several functions with same frame size:
+</p>
+
+<code>...
+<mim>retf</mim>    frame_size_immediate
+before_return:
+<mim>retf</mim>    frame_size_immediate
+</code>
+
+<p>The next function allocates local registers and allocates stack frame with variable size
+(uses variable length arrays or alloca function) possibly with initial size more than pagesize.
+In this case we have 2 rollback points:
+for the case of failure in local register alocation, and for the case of failure in initial stack alocation.
+The <reg>sp</reg> can't be used for access local stack frame (because of variable frame size),
+so some local temp register is used to save/restore old sp value (<reg>r6</reg> in example) with negative offsets.
+</p>
+
+<code># optional guard page probing for frame size bigger than pagesize
+<mim>st_i64</mim>    %gz, %sp, -page_size * 1
+<mim>st_i64</mim>    %gz, %sp, -page_size * 2
+...
+<mim>st_i64</mim>     %gz, %sp, -page_size * n
+# allocation only after probing, r6 is allocated on the fly
+<mim>alloc_sp</mim> 11, initial_frame_size_immediate
+<mim>add_imm_i64</mim>    %r6, %sp, initial_frame_size_immediate
+<mim>eh_adj</mim>   before_return   # immediately after saving fp in r6
+...
+<mim>insn</mim>    # can fail, can use r1..r10
+<mim>ld_u32</mim>    %r7, %r6, -offset # using r6 for local frame addressing
+
+# alloca or VLA
+# optional guard page probing for big frame size
+<mim>st_i64</mim>    %gz, %sp, -page_size * 1    
+<mim>st_i64</mim>    %gz, %sp, -page_size * 2
+...
+<mim>st_i64</mim>    %gz, %sp, -page_size * m
+# allocation only after probing
+<mim>sub_i64</mim>    %sp, %sp, additional_frame_size
+# end of alloca or VLA
+
+<mim>st_i32</mim>    %r7, %r6, -offset # using r6 for local frame addressing
+...
+before_return:
+<mim>mov</mim>    %sp, %r6
+<mim>ret</mim>
+</code>
+
+</section>
+
+<section id="register_stack_system_management">
+<title>The register stack system management</title>
+
+<p>One <mim>alloc</mim> instruction, along with instructions for calling procedures and returning control,
+in principle, it is enough for user programs to handle the register stack.
+But for system programs that handle interrupt processing, returning from an interrupt,
+context switching, initialization of the register stack, some more instructions are needed.
+</p>
+
+<p>Instruction without parameters <mim>rscover</mim> (<miname>register stack cover frame</miname>) is used,
+to put the last (active) frame of the register stack into the <em>dirty</em> state
+(registers belonging to inactive procedure frames).
+After executing this instruction, the size of the active frame of the local registers is zero.
+This instruction prepares the register stack for subsequent disconnection or switching.
+</p>
+
+<p>Instruction without parameters <mim>rsflush</mim> (<miname>register stack flush</miname>)
+used to flush all inactive frames of the register stack into memory
+(transfer from the <em>dirty</em> state to the <em>clean</em> state).
+After executing this instruction, the register stack can be disabled without fear of data loss.
+</p>
+
+<p>Instruction without parameters <mim>rsload</mim> (<miname>register stack load</miname>)
+used to load from memory the last inactive frame of the register stack and be ready to activate it.
+After executing this instruction, the register stack is ready to work (a group of <em>clean</em> registers appears in it).
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>rscover</mim>, <mim>rsflush</mim>, <mim>rsload</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <noargs>opx</noargs>
+</slot>
+</slot_table>
+
+</section>
+
+<section id="calling_convention">
+<title>Calling convention</title>
+
+<p>ABI defines a standard relationship function relationship, namely
+stack frame location, using registers, passing parameters.
+</p>
+
+<p>The standard function call convention applies only to global functions.
+Local functions (not available from other object files) may be used by other
+agreement unless it prevents the correct recovery after an exception.
+</p>
+
+<p>Convention about the use of registers in standard function calls
+divides all the global registers available to the program into two categories:
+<em>saved</em> (preserved) and <em>non-saved</em> (scratch) registers.
+</p>
+
+<p>preserved registers are guaranteed to be saved when the procedure is called.
+The called procedure (callee) guarantees the safety of the contents of such a register
+with a normal return from it. She either doesn't touch this register, or saves it
+contents somewhere and restores before returning.
+</p>
+
+<p>Unsaved (scratch) registers may not be saved when a procedure is called.
+The calling procedure (caller) must store the contents of such a register in memory (on the stack)
+or in another, but persistent register, if it doesn't want to lose its contents when calling callee.
+The callee function called uses this register for its needs without restriction.
+</p>
+
+<p>The architecture provides 128 general purpose registers of 128 bits,
+and several 64/128 bit special purpose registers.
+General purpose registers are divided into global (static) and rotatable.
+The following table shows how registers are used.
+</p>
+
+<table>
+<caption>Saving registers when calling procedures</caption>
+<thead>
+<tr>
+<th>registers</th>
+<th>volatility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sp</td><td><regname>stack pointer</regname> is saved.
+The address of the top of the stack must be aligned on a 16-byte boundary.
+It should always point to the last placed stack frame, growing down in the direction of lower addresses.
+The contents of the word at this address always points to a previously placed stack frame.
+If required, may be reduced by the called function.
+The stack top pointer must be updated atomically with a single instruction to avoid any period of time in which the interrupt can
+happen with a partially updated stack.</td>
+</tr>
+<tr><td>tp</td><td><regname>thread pointer</regname> is saved.
+This register stores the base address of the TDATA segment of the main program module.</td>
+</tr>
+<tr>
+<td>r0</td><td>communication register, saved automatically by the rotation mechanism of the registers.</td>
+</tr>
+<tr><td>r1-r32</td>
+<td>Used to pass parameters to the called function (not saved).
+Registers r1 and r2 store the return value.
+</td>
+</tr>
+</tbody>
+</table>
+
+<p>Static registers g0-g7 must retain their values in the process of accessing the function.
+Functions that use these registers must save their values before changing, and restore them before returning from the function.
+</p>
+
+<p>External signals can interrupt the flow of instructions at any time.
+Functions called during signal processing do not have any special restrictions on their use of registers.
+In addition, when the signal processing function returns control, the process resumes its work with correctly restored registers.
+Therefore, programs and compilers are free to use all registers above except
+reserved for use by the system without fear of signal processing programs that inadvertently change their values.
+</p>
+
+<p>The operating system provides each thread with its own stack, in which data is placed on both sides.
+The stack of rotated registers grows from the bottom towards the higher addresses, work with it under the control of the equipment and is not visible to ABI.
+The usual stack of software local objects grows from top to bottom towards lower addresses.
+Each frame (frame) corresponds to an activation record of a procedure in a call chain.
+The stack pointer <reg>sp</reg> (stack pointer) always points to the first byte after the top of the stack.
+The stack frame should be aligned at the 16-byte boundary, and should be a multiple of 16 bytes in size.
+</p>
+
+<p>The last function in the call chain, which itself doesn't call anyone, may not have its own frame.
+Such functions are called leaf or terminal (in the graph of dependencies between functions).
+All other functions must have their own stack frame in the dynamic stack.
+The following figure shows the organization of the stack frame.
+<reg>sp</reg> in the figure means the pointer (register r1) of the top of the stack
+the called function after it has executed the code setting the stack frame.
+</p>
+
+<p>Stack frame organization</p>
+
+<pre>highest address
+
+        + -> Frame header (return address, gp, rsc)
+        | Register storage area (aligned on the boundary of 16 bytes)
+        | Local variable space (aligned on the boundary of 16 bytes)
+sp ---> + - The title of the next frame (sp + 0)
+
+lowest address
+</pre>
+
+<p>The following requirements apply to the stack frame:</p>
+<ul>
+<li>The pointer to the top of the stack should always be aligned on a 16-byte boundary.</li>
+<li>The pointer to the top of the stack should point to the beginning of the most recently placed stack frame <ndash/>
+8-byte number of <quote>return address</quote>. The stack should grow down towards lower addresses.</li>
+<li>The first 8-byte number of the stack frame should always point to the previously allocated frame (in the direction of the older addresses) of the stack,
+except for the first frame of the stack, which must have a null pointer.</li>
+
+<li>Pointer to the top of the stack, if required,
+should be reduced by the called function in its prolog and restored before returning.</li>
+
+<li> Before a function calls another function,
+it must save the value of the register <reg>lp</reg> in the storage area for the return address.</li>
+
+<li> Some space below the stack top may be available as volatile storage (<def>red zone</def>), which is not saved when the function is called.
+Interrupt routines and any other functions that can be performed without an explicit call should take care to guard this region.
+If the function doesn't need more stack space than is available in this area, then it doesn't need to have its own stack frame.</li>
+</ul>
+
+<p>The header of the stack frame consists of a pointer to the previous frame (link info),
+storage areas <reg>rsc</reg>, <reg>lp</reg> and <reg>gp</reg>, resulting in 32 bytes.
+Link info always contains a pointer to the previous frame in the stack.
+Before function B refers to another function C, it must save the contents of the communication register received from function A in the storage area <reg>lp</reg>
+for the stack frame of function A, and must set its own stack frame.
+</p>
+
+<p>Except for the header of the stack frame and inserts for alignment at the 16-byte boundary,
+the function should not allocate space for areas that it doesn't use.
+If the function doesn't call other functions and doesn't require anything from the rest of the stack frame, then it should not set the stack frame.
+The parameter saving area follows the stack frame, the register saving area should not contain any inserts.
+</p>
+
+<p>For machines of the RISC type (where there are many registers) it is generally more efficient to pass arguments to the called functions in the registers (real and general purpose),
+rather than constructing a list of arguments in memory or pushing them onto the stack.
+Since all calculations must somehow be performed in registers,
+then extra memory traffic can be eliminated if the caller can calculate the arguments in the registers and pass them in the same registers of the called function (callee),
+and she can immediately use them for its calculations.
+The number of arguments that can be passed in this form is limited by the number of available registers in the processor architecture.
+</p>
+
+<p>For <archname/>, up to 16 parameters are passed in general registers and are visible in the callee new frame in registers r1<hellip/>r16.
+The caller passes parameters starting from any register.
+Exact register number on the caller side depend on caller local frame size.
+</p>
+
+<p>Parameter storage area, which is located at a fixed distance of 32 bytes from the pointer to the top of the stack,
+reserved in each frame of the stack for use under the argument list.
+A minimum of 8 double words is always reserved.
+The size of this area should be sufficient to preserve the longest list of arguments passed to the function if it owns a stack frame.
+Although not all arguments for a particular call are in storage,
+consider their list formation in this area, with each argument occupying one or more double words.
+</p>
+
+<p>If more arguments are passed than are allowed to be stored in registers, the remaining arguments are stored in the parameter storage area.
+Values passed through the stack are bitwise identical to those that would be placed in registers.
+</p>
+
+<p>For variable argument lists, the ABI uses the type <var>va_list</var>,
+which is a pointer to the location in memory of the next parameter.
+Using the simple va_list type means that variable arguments should always
+stay in the same location despite the type, so that they can be found at runtime.
+This ABI defines the location, which is the common registers r8-r18
+for the first eight double words and the parameter storage area on the stack for the rest.
+Alignment requirements, such as for real types, may require
+so that the va_list pointer is pre-aligned before accessing the value.
+</p>
+
+<!--
+<p>Rules for passing parameters:</p>
+
+<li> Each argument is projected onto how many double words the parameter save area,
+because you want to keep its value.
+
+<li> Single values an exact floating-point are projected onto the first word in a single double word.
+
+<li> Double precision floating-point values are projected onto a single double word.
+
+<li> The extended exact float values are projected onto two consecutive double words.
+
+<li> Simple integer types (char, short, int, long, enum) are projected onto a single double word.
+Values that are shorter than a double word expand signally or unsignedly if necessary.
+
+<li> Complex floating-point and compound integer types are drawn map as if
+the argument was specified as separate real and imaginary parts. 
+
+<li> Pointers are projected onto a single double word.
+
+<li> Vectors are projected onto a single quadword, quadword aligned.
+This can lead to missing double words in the parameter save area.
+
+<li> Corrected aggregates of size and union passed by value,
+are projected onto how many double words of the parameter storage area,
+since the value is used in memory.
+Aggregrates and pools will align according to their alignment requirements.
+This can lead to double words being skipped for alignment. 
+
+<li> An aggregate or a smaller union than a double word in size padded in this way
+that it appears in the lower digits of the double word.
+All others padded, if necessary, in their tail.
+Volatile aggregates of size or pool pass by help. 
+
+<li> Other scalar values are projected onto the number of double words required by their size. 
+
+<li> If callee has a known prototype, the arguments are turned into a kind of corresponding
+parameter in front of the drawn map in the parameter save area.
+For example, if longer is used as an argument to the double parameter of the float,
+the value is converted to double precision and projected onto a double word in the parameter storage area.
+
+<li> floating-point registers f1 through f16 are used sequentially,
+to pass up to 16 floating-point values.
+Complex values occupy two registers. 
+The first 16 of all double words in the parameter storage area,
+that the arguments to the floating-point of the map, except for the arguments,
+corresponding to the variable part of the callee argument with a prototype containing an ellipsis,
+transmitted in floating-point registers.
+
+<li> If there is no known description of an external function for callee,
+or if the description of the external function for callee contains an ellipsis (ellipsis <hellip/>) and the value of the argument
+not part of the corrected arguments described by the prototype,
+then the floating-point and vector values are traversed according to the following rules for non-floating,
+non-vector types.
+In the case of no known prototype, this could lead to two copies of the floating
+and the passing values of the argument vector. 
+
+<li> General registers are used to pass some values.
+The first eight double words projected onto the parameter storage area,
+correspond to registers from r3 to r10. The argument, except for floating-point and vector values,
+fully described by the prototype that maps to this area either in whole or in part,
+transmitted in the respective general registers.
+
+<li> All other arguments not already covered (or parts of it) should be remembered
+in the parameter storage area following the first eight double words.
+The first eight double words projected onto the parameter storage area,
+never remembered in the parameter storage area by the call function. 
+
+<li> If callee takes the address of any of its parameters, then the values passed in registers,
+stored in the callee parameter storage area.
+If the translation unit for the visitor contains a description of the external function, but callee
+has a mismatch definition, this can lead to incorrect values being remembered.</p>
+-->
+
+<p>The return value of the function. Functions must return type values
+<type>int</type>, <type>long</type>, <type>long long</type>, <type>enum</type>, <type>short</type>, <type>char</type>, or pointers to any type,
+in register r1, extended to 64 bits (zeros or sign).
+</p>
+
+<p>Arrays of characters up to 8 bytes long, or bit strings up to 64 bits long, will be returned in the g8 register, right justified.
+Structures or joins of any length, and character strings longer than 8 bytes, will be returned in the storage buffer allocated by the caller.
+The caller passes the address of this buffer as a hidden optional argument.
+</p>
+
+<p>Functions must return a single real result of type
+<type>float</type>, <type>double</type>, <type>long double</type> (quadruple) in the r1 register, rounded to the desired precision.
+Functions must return complex numbers in the registers r1 (real part) and r2 (imaginary part), rounded to the desired accuracy.
+</p>
+
+</section>
+
+</chapter>
+

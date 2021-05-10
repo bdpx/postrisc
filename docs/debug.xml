@@ -1,0 +1,436 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<chapter xmlns="http://www.example.com/postrisc" id="debugging_and_monitoring">
+<title>Debugging and monitoring</title>
+
+<preface>
+<p>The <archname/> architecture provides debugging tools that enable hardware and software debugging features,
+such as step-by-step program execution, instruction breakpoints, and data breakpoints.
+</p>
+
+<p>Debugging tools consist of a special debugging control register <reg>dbscr</reg> (<regname>debug status and control register</regname>),
+a set of debugging events as a subset of interrupts,
+special registers for comparing instruction addresses <reg>ibr</reg> (<regname>instruction breakpoint register</regname>),
+special registers for comparing data addresses <reg>dbr</reg> (<regname>data breakpoint register</regname>).
+</p>
+
+<p>Debug registers are available for program execution,
+but they are intended for use only by special debuggers and debugging software,
+not general software or operating system code.
+</p>
+
+<p>Monitoring tools include the following resources:
+special registers and/or bit fields controlling the monitoring,
+implemented types of counted events,
+a fixed number of event counters,
+additional type of interrupts for processing the monitoring counter overflow events.</p>
+</preface>
+
+<section id="debug_events">
+<title>Debug Events</title>
+
+<p>Debugging tools are based on a special group of debug interrupts built into the general interrupt mechanism.
+Debug type interrupts can be thrown for various reasons that can be analyzed in the handler of this interrupt.
+There are seven types of predefined debugging events:
+</p>
+
+<table>
+<caption>Debug events (in priority order)</caption>
+<thead><tr>
+<th>Name</th>
+<th>Event Type</th>
+</tr></thead>
+<tbody>
+<tr><td>IB</td><td><error>Instruction address match</error> debug event occurs on instruction address match.
+If the address of a instruction bundle matches one of the criteria,
+specified in the debug registers <reg>ibr</reg>, a instruction debugging event is raised (if the instruction is not canceled).
+One or more debug events <reg>ibr</reg> occur, if the execution of instructions at the address which matches the criteria specified in the registers <reg>ibr</reg>.
+</td>
+</tr>
+<tr><td>DB</td><td><error>Data address match</error> debug event occurs on data address match.
+If the address for accessing data in memory meets one of the criteria, specified in the debug registers <reg>dbr</reg>.
+Data Debug errors are only reported if the qualification predicate is true.
+The reported trap code returns the matching state of the first 4 <reg>dbr</reg> registers that matched during the execution of the instruction.
+Zero, one or more <reg>dbr</reg> registers can be reported as matching.
+</td>
+</tr>
+<tr><td>TR</td><td>Software Trap</td></tr>
+<tr><td>TB</td><td><error>Taken branch</error> trap occurs on each taken branch instruction received if <regfield>psr.tb</regfield>=1.
+This trap is useful for profiling a program.
+After the trap, <reg>iip</reg> and <regfield>ipsr.rs</regfield> point to the branch destination instruction,
+and <reg>iipa</reg> and <regfield>cause.ei</regfield> to the branch instruction that caused the trap.
+The case of debugging <error>taken branch</error> (TB) occurs if <regfield>psr.tb</regfield>=1
+(that is, debug events <error>taken branch</error> are allowed), the branch instruction is executed
+(i.e., either an unconditional branch, or a conditional branch in which the branch condition is satisfied),
+and <regfield>psr.de</regfield>=1 or <regfield>dbcr0.idm</regfield>=0.
+</td>
+</tr>
+<tr><td>SS</td><td><error>Single step</error> trap occurs on each successfully finished instruction if <regfield>dbsc.rss</regfield>=1 (step-by-step debugging events are allowed).
+After the trap, <reg>iip</reg> and <regfield>ipsr.rs</regfield> point to the next instruction to be executed.
+<reg>iipa</reg> and <regfield>cause.ei</regfield> point to the caught instruction.
+</td>
+</tr>
+<tr><td>lp</td><td>An interrupt has occurred.
+The debug event <error>an interrupt occurred</error> (IRPT) occurs,
+if <regfield>dbcr.irpt</regfield>=1 (that is, a debug event of the interrupt occurred is allowed) and any
+non-critical interruption occurs while <regfield>dbcr.idm</regfield>=1,
+or any critical or non-critical interrupt occurs while <regfield>dbcr.idm</regfield>=0.
+Abort Accepted Debug Events, may occur regardless of the installation of <regfield>psr.de</regfield>.
+</td>
+</tr>
+<tr><td>IR</td><td>Returns from Interrupt</td>
+</tr>
+</tbody>
+</table>
+
+<p>Debug events include instruction and data breakpoints.
+These debug events set the status bits in the DBSR debug status register.
+The existence of a set bit in the DBSCR register is considered as a debug exception.
+Debug exceptions, if allowed, cause debugging interruptions.
+The debug status and control register (DBSCR) is used to set the allowed debug events,
+manage timer operations during debugging events, and set processor debugging mode.
+It contains the status of debug events.
+</p>
+
+<p>The group of bits DBE (debug enabled events) of the DBSCR register is set in supervisor mode and cannot be changed by the program.
+Bit groups DBTE (debug taken enabled event) and DBT (debug taken event) of the DBSCR register
+installed by hardware, they can be read and cleaned programmatically.
+The contents of the DBSCR register can be read into the general register by the instruction <mim>get_spr</mim>.
+</p>
+
+<p>Debug events are used to force debug exceptions. be registered in the DBSCR debug status register.
+</p>
+
+<p>To enable the debug event, you need to set the corresponding bit
+from the DBE group of the DBSCR register and thus raise a debug exception
+a certain type of event must be allowed by the corresponding bit or bits
+in the dbcr debug control registers. Once the DBSCR register bit is set and,
+if debug interrupts are enabled (a bit from the DBE group is 1), a debug interrupt will be generated.</p>
+
+<p>The bit in the special DBSCR debug control register must be
+set to 1 to allow debugging interrupt corresponding to this bit.
+Debugging events are not allowed to occur when the corresponding bit in the DBSCR register is 0.
+In such situations, no debug exception of this type occurs.
+and no bits of this type of DBSCR register are set.
+</p>
+
+<p>If the corresponding bit in the register <reg>dbscr</reg> is 1
+(that is, debugging interrupts of this type are allowed) during this debug exception,
+interruption of debugging will occur immediately
+(if there is no exception with a higher priority,
+which is allowed to cause interrupts), the execution of the instruction,
+causing the exception will be suppressed, and CSRR0 will be set to the address of this instruction.
+</p>
+
+<p>If debug interrupts of this type are blocked during a debug exception,
+interruption of debugging will not occur, and the instruction will complete execution
+(provided, the instruction doesn't cause some other exception,
+which generates an allowed interrupt).
+</p>
+
+<note>If an instruction is suppressed due to an instruction,
+that raised some other exception that allows the generation of an interrupt,
+then the attempted implementation of that instruction does no Cause the instruction Complete debugging case.
+The <mim>trap</mim> instruction doesn't fall into the category of instructions whose execution is suppressed,
+starting with instructions, it actually completes execution and then generates an interruption to the system call.
+In this case, the finished debug exclusion command will also be installed.
+</note>
+
+<p>A trap debugging event (<mim>trap</mim>) occurs if <regfield>dbscr.trap</regfield>=1
+(that is, Trap debugging events are allowed) and the Trap instruction is unconditional or the conditions for the trap are met.
+</p>
+
+<p>Interrupt instruction error <ndash/> execution of <mim>trap</mim> instruction results in the Interrupt instruction error.
+An interrupt can be used to profile, debug, and enter the operating system.
+(although the instruction to enter the privileged code (<mim>syscall</mim>) is recommended, since it has lower costs).
+</p>
+
+<p>If <regfield>dbcr.trap</regfield>=0 (that is, trap-type debugging interrupts are blocked)
+during the exception of debugging a trap, interruption of debugging will not occur,
+and the type of exception for the Trap. A Program Interruption will occur instead if the trap condition is met.
+</p>
+
+<p>Trap <error>Decrease privilege level</error>.
+when <regfield>psr.lp</regfield>=1, and the transition that occurs lowers the privilege level
+(<regfield>psr.cpl</regfield> becomes 1), this trap occurs.
+This trap allows the debugger to keep track of privilege drops, for example,
+to remove permissions granted to higher privileged code.
+After the trap <reg>iip</reg> and <regfield>ipsr.rs</regfield>
+point to the effective address of the branch, and <reg>iipa</reg> and <regfield>cause.ei</regfield> to the branch instruction that caused the trap.
+</p>
+
+<p>When <regfield>dbcr.idm</regfield>=1, only non-critical interrupts can trigger debugging events of the interrupt that occurred.
+This is because all critical interrupts automatically clear <regfield>psr.de</regfield>,
+which would always prevent the associated debugging interrupt from appearing accurately.
+Also, debug interrupts directly are <ndash/> critical class interrupts, and thus any debug interrupt
+(for any other debugging case) would always end up during installation
+an additional exception to <regfield>dbsr.irpt</regfield> after entering the debug interrupt handler.
+At this point, the debug interrupt routine is unable to determine
+Is the interruption a valid debugging event? It was related to the initial debugging event.
+</p>
+
+<p>When <regfield>dbcr.idm</regfield>=0,
+then critical and non-critical class interruptions can cause the Abort Accepted debugging event.
+In this case, the assumption is that debugging events are not used to cause interruptions.
+(software can vote DBSR instead)
+and therefore it's proper to record an exception in DBSR even though
+that the critical interrupt that causes the interrupt is an accepted debug event, will clear <regfield>psr.de</regfield>.
+</p>
+
+<p>Debug event <error>Interception return from interrupt</error>
+(a call to the <mim>ret</mim> instruction) occurs if <regfield>dbcr.ret</regfield>=1
+(i.e. debugging events are allowed when returning from an interrupt)
+and an attempt was made to execute the <mim>rfi</mim> instruction.
+When a debug event occurs on return, <regfield>dbsr.ret</regfield> is set to 1 to record a debug exception.
+</p>
+
+</section>
+
+<section id="debug_registers">
+<title>Debug registers</title>
+
+<p>Debug registers are designed to organize the interception of program calls to
+specific address ranges for specific purposes (e.g. execution or writing),
+and allow the debugger to verify the correctness of the program.
+Their number depends on the implementation. Read/write ability depends on the priority level, processor model.
+They are used in pairs, with at least 4 pairs for instructions and 4 for data.
+</p>
+
+<p>The 128-bit instruction breakpoint registers <reg>ibr</reg> are for debug comparing instruction addresses.
+A debugging event can be allowed to occur after trying to execute a instruction at an address range specified by a <reg>ibr</reg> register.
+Since all instruction addresses must be aligned on the border of the bundle,
+the four least significant bits of the <reg>ibr</reg> register are reserved and do not participate in comparison with the address of the instruction bundle.
+</p>
+
+<reg_table>
+<bits64/>
+<reg_row>
+    <imm size="64">address</imm>
+</reg_row>
+<reg_row>
+    <bitfield>x</bitfield>
+    <reserved size="3">0</reserved>
+    <bitfield size="4">plm</bitfield>
+    <imm size="52">mask</imm>
+    <reserved size="4">0</reserved>
+</reg_row>
+</reg_table>
+
+<p>The 128-bit data breakpoint registers <reg>dbr</reg> are for debug comparing data addresses.
+A debugging event can be allowed to occur after loads, stores, or atomic instructions to an address range specified by a <reg>dbr</reg> register.
+</p>
+
+<reg_table>
+<bits64/>
+<reg_row>
+    <imm size="64">address</imm>
+</reg_row>
+<reg_row>
+    <bitfield>r</bitfield>
+    <bitfield>w</bitfield>
+    <reserved size="2">0</reserved>
+    <bitfield size="4">plm</bitfield>
+    <imm size="56">mask</imm>
+</reg_row>
+</reg_table>
+
+<p>The contents of the register <reg>dbr</reg> are compared with the address computed by the memory access instruction.
+Data debugging event occurs, if enabled, attempted execution of the data memory access instruction, and type, address,
+and maybe even the meaning of the data access memory matches the criteria specified in the <reg>dbr</reg>.
+</p>
+
+<p>All load instructions are treated as reads regarding debugging events, while all store instructions are treated as a write regarding debugging events.
+Additionally, cache management instructions, and some special cases handled as follows.
+</p>
+
+<p>The <regfield>cmp</regfield> bits determine whether all or some of the bits of the instruction address should
+match the contents of debug register, whether the address should be inside or beyond a specific range specified by a <reg>ibr</reg> register for a debugging event to occur.
+</p>
+
+<p>There are four modes for comparing instruction addresses.</p>
+<ul>
+<li>bit matching mode: if <reg>ip</reg> AND <regfield>ibr.mask</regfield> == <regfield>ibr.address</regfield> AND <regfield>ibr.mask</regfield>.</li>
+<li>interval containing mode: For ibr debug events, if the instruction address is greater than or equal to the content of ibr.high and less than the content of inr.low, matching instruction address occurs.</li>
+<li>Exceptional interval mode: For ibr debug events, if the instruction address is less than the content of ibr.high or greater than or equal to the content of ibr.low, matching instruction address occurs.</li>
+</ul>
+
+<p>High register part contains breakpoint addresses, low part contains offset or breakpoint mask.
+At least 4 data and instruction registers are implemented on all processor models.
+The first registers after zero by number are implemented.
+</p>
+
+<p>The instruction and data memory addresses provided for compliance are always in the implemented address space.
+Programming an unimplemented physical address in <reg>ibr</reg>/<reg>dbr</reg> ensures that the physical addresses provided by ibr/dbr will never match.
+Similarly, programming unimplemented virtual addressing in <reg>ibr</reg>/<reg>dbr</reg> ensures that the virtual addresses submitted by <reg>ibr</reg>/<reg>dbr</reg> will never match.
+</p>
+
+<table>
+<caption>Debug breakpoint register fields (<reg>dbr</reg>/<reg>ibr</reg>)</caption>
+<thead><tr>
+<th>Field</th>
+<th>Description</th>
+</tr></thead>
+<tbody>
+<tr><td>Address<br/>63:0</td><td><def>Matching address</def><ndash/>
+64-bit virtual or physical breakpoint address.
+The address is interpreted as virtual or physical depending on
+<regfield>psr.dt</regfield> and <regfield>psr.it</regfield>.
+The trap <error>Instruction data breakpoint address</error> occurs when load, store, semaphore instruction.
+For fetching instructions, the lower four bits of ibr.addr{3:0} are ignored when comparing addresses.
+All 64 bits are implemented on all processors, regardless of the number of address bits implemented.</td>
+</tr>
+<tr><td>mask<br/>55:0</td><td><def>mask for the address</def> determines which address bits
+in the corresponding address register will be compared when determining the conformity of the control point.
+Address bits for which mask bits are 1 must match the address of the breakpoint, otherwise, the address bit is ignored.
+Address bits {63:56} for which there are no corresponding mask bits, always compared.
+All 56 bits are implemented on all processors, regardless of the number implemented bits of the address.</td>
+</tr>
+<tr><td>plm<br/>59:56</td><td><def>Mask for all privilege levels</def> <ndash/>
+Allows data breakpoints that match the specified privilege level.
+Each bit corresponds to one of 4 privilege levels.
+Bit 56 corresponds to privilege level 0, bit 57 to level 1, etc.
+A value of 1 indicates that debugging comparisons are allowed at this privilege level.</td>
+</tr>
+<tr><td>w<br/>62</td><td><def>Write</def> - When <regfield>dbr.w</regfield>=1,
+any not canceled store, semaphore, probe.w.fault or probe.rw.fault to the address, causes the breakpoint to the corresponding address register.</td>
+</tr>
+<tr><td>r<br/>63</td><td><def>Read</def> - When <regfield>dbr.r</regfield>=1,
+any unannounced load, semaphore, lfetch.fault, probe.r.fault or probe.rw.fault at the address corresponding to the address register causes a breakpoint.
+When <regfield>dbr.r</regfield>=1, PT access that matches dbr
+(except those for the tak instruction) will cause an error <error>Missing in Instruction/Data TLB</error>.
+If <regfield>dbr.r</regfield>=0 and <regfield>dbr.w</regfield>=0, the data breakpoint register is locked.</td>
+</tr>
+<tr><td>x<br/>63</td><td><def>Execution</def> - When <regfield>ibr.x</regfield>=1,
+executing instructions at the address corresponding to the address register causes a breakpoint.
+If <regfield>ibr.x</regfield>=0, then the instruction breakpoint register is locked.
+Control points for instructions will be reported, even the instruction is canceled.</td>
+</tr>
+<tr><td>ig<br/>62:60</td><td>Ignored</td>
+</tr>
+</tbody>
+</table>
+
+<p>The registers <reg>dbr</reg>/<reg>ibr</reg> can only be accessed at the highest privilege level 0,
+otherwise, the <error>privileged operation</error> error occurs.
+</p>
+
+<p>Debug register changes are not necessarily observed with the following instructions.
+The software must use the data serialization to ensure that modifications to <reg>dbr</reg>,
+<regfield>psr.db</regfield>, <regfield>psr.tb</regfield> and <regfield>psr.lp</regfield>
+observed before the dependent instruction is executed.
+Because changing the registers <reg>ibr</reg> and the flag <regfield>psr.db</regfield>,
+affect the subsequent instruction fetching, the software must execute the instruction serialization.
+</p>
+
+<p>In some implementations, a hardware debugger may use two or more registers for its own use.
+When a hardware debugger is applied, only 2 <reg>dbr</reg> and only 2 <reg>ibr</reg> are available for program use.
+The software should be able to run with fewer implemented <reg>ibr</reg> and/or <reg>dbr</reg> registers if a hardware debugger is present.
+When a hardware debugger is not implemented, at least 4 <reg>ibr</reg> and 4 <reg>dbr</reg> are available for programmatic use.
+</p>
+
+<p>Implemented debug registers used by the attached hardware debugger,
+arranged by number first (for example, if only 2 <reg>dbr</reg> are available software, the registers <reg>dbr</reg>[0-1]) are available.
+</p>
+
+<note>When a hardware debugger is implemented and it uses two or more of debug registers,
+the processor doesn't force registers between the program and the hardware debugger,
+that is, the processor doesn't prohibit the program from reading or changing any of the debug registers.
+However, if the program modifies any of the registers used by the hardware debugger,
+the processor and/or hardware operation of the debugger may become undefined; the processor and/or hardware debugger may crash.
+</note>
+
+<p>The instructions <mim>get_ibr</mim> (get instruction breakpoint register), <mim>set_ibr</mim> (set instruction breakpoint register),
+<mim>get_dbr</mim> (get data breakpoint register), <mim>set_dbr</mim> (set data breakpoint register) are used to indirectly read/write instruction/data debug registers.
+The sum of general register and simm10 is used to pass index of monitor register number.
+</p>
+
+<code>get_ibr  ra, rb  # ra = <reg>ibr</reg>[rb+imm]
+set_ibr  ra, rb  # <reg>ibr</reg>[rb+imm] = ra
+get_dbr  ra, rb  # ra = <reg>dbr</reg>[rb+imm]
+set_dbr  ra, rb  # <reg>dbr</reg>[rb+imm] = ra
+</code>
+
+<slot_table>
+<caption>instruction format for debug registers read/write</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>target</gpr>
+    <gpr>index</gpr>
+    <stride>simm10</stride>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+</section>
+
+<section id="monitor_registers">
+<title>Monitoring registers</title>
+
+<p>Monitoring Registers are designed to count various internal events when executing an instruction thread.
+Their number depends on the implementation (minimum 4).
+Read/write ability depends on the priority level, processor model.
+</p>
+
+<reg_table>
+<bits64/>
+<reg_row>
+    <imm size="64">counter for the number of such events</imm>
+</reg_row>
+<reg_row>
+    <ignored size="56">0</ignored>
+    <bitfield size="8">event type</bitfield>
+</reg_row>
+</reg_table>
+
+<p>There are at least 8 128-bit performance monitoring registers (<reg>mr0</reg><hellip/><reg>mr7</reg>).
+Unimplemented monitoring registers when reading give zero, writing to them is ignored.
+Each monitoring register is associated with a specific event for which it is counting.
+</p>
+
+<table width="50%">
+<caption>The counted events types</caption>
+<thead><tr>
+<th>Name</th>
+<th>Event</th>
+</tr>
+</thead>
+<tbody>
+<tr><td></td><td>Page access</td></tr>
+<tr><td></td><td>DTLB miss</td></tr>
+<tr><td></td><td>ITLB miss</td></tr>
+<tr><td></td><td>I1-cache miss</td></tr>
+<tr><td></td><td>D1-cache miss</td></tr>
+<tr><td></td><td>D1-cache write-back</td></tr>
+<tr><td></td><td>L2-cache miss</td></tr>
+<tr><td></td><td>L2-cache write-back</td></tr>
+</tbody>
+</table>
+
+<p>An overflow of monitor counter raises an asynchronous event.
+</p>
+
+<p>The instructions <mim>get_mr</mim> (get monitor register) and <mim>set_mr</mim> (set monitor register) are used to indirectly read/write monitor registers.
+The sum of general register and simm10 is used to pass index of monitor register number.
+</p>
+
+<code>get_mr  ra, rb  # ra = MR[rb+imm]
+set_mr  ra, rb  # MR[rb+imm] = ra
+</code>
+
+<slot_table>
+<caption>instruction format for <mim>get_mr</mim>, <mim>set_mr</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>target</gpr>
+    <gpr>index</gpr>
+    <stride>simm10</stride>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+</section>
+
+</chapter>

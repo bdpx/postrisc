@@ -1,0 +1,444 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<chapter xmlns="http://www.example.com/postrisc" id="predication">
+<title>Predication</title>
+
+<preface>
+</preface>
+
+<section id="isa_predication">
+<title>Conditional execution of instructions</title>
+
+<p>The architecture defines a model in which the control flow is passed to the next sequential instruction in memory,
+unless otherwise directed by a jump instruction or interrupt.
+The architecture requires the program to appear that the processor is executing instructions in the order
+in which they are located in memory, although in reality the order can be changed inside the processor.
+The instruction execution model described in this chapter provides a logical representation of the steps involved in executing the instruction.
+The branch and interrupt sections show how flow control can be changed during program execution.
+</p>
+
+<p>If the branch direction is incorrectly predicted, the branch instruction causes the pipeline to stop.
+All speculatively launched instructions are reset from the fetch stage to the stage of writing results <ndash/> for almost the entire length of the pipeline.
+</p>
+
+<p><def>Predication</def> is a conditional execution of instructions.
+The purpose of conditional execution is to remove badly predicted branches from the program.
+In this case, any instruction becomes a hardware-executed conditional branch operator.
+For example:
+</p>
+
+<p>if (a) b = c + d.</p>
+<p><mim>add</mim> (a) b = c, d</p>
+
+<p>The optional argument <quote>a</quote> (<def>predicate</def>) sets the logical condition <ndash/> to execute the instruction or not.
+This technology replaces a control dependency with a data dependency and shifts a possible pipeline shutdown closer to the pipeline end.
+All instructions issued with a false value of the predicate are rejected at the completion stage (retire) or earlier (up to the decode stage) without interruptions.
+</p>
+
+<p>The instruction predication may be explicit or implicit.
+With <def>explicit</def> predication, each instruction contains an additional argument <ndash/> a one-bit predicate register,
+and, accordingly, the architecture contains a file of several predicate registers (16 predicates in the ARM-32 architecture, 64 in Intel-Itanium).
+</p>
+
+<p>When <def>implicit</def> predication, the architecture contains a special register-mask for storing information about the conditionality of the execution of future instructions.
+Before executing the instruction, the first bit from this register is taken as its predicate.
+Then the register is shifted by one bit, while the current bit is lost. The subsequent instruction takes the second bit as the predicate.
+The register is constantly updated from the other end with <quote>clean</quote> bits corresponding to unconditionally executed instructions.
+</p>
+
+<p>Some instructions may write data to this register, thereby canceling the unconditional execution of some future instructions according to the bitmask.
+These are the so-called <def>nullification instructions</def>.
+For example, using mask 0b10011 containing 3 1-bits, the 3 instructions (1, 2, and 5th) after the nullification instruction will be canceled.
+</p>
+
+<p>The advantage of conditional execution is the elimination of most branches in short conditional calculations, and hence the pipeline stops.
+However, this is a purely power method, which boils down to simultaneously issuing instructions from several execution branches under different predicates on the pipeline.
+In addition, when explicitly predicting, a place in the instruction is required to explicitly encode the optional argument <ndash/> the predicate register.
+</p>
+
+<p>Predication is more suitable for short conditional calculations.
+It makes no sense to apply predication for loops, or conditional statements longer than the gain from the continuous operation of the pipeline without branches.
+However, it is the only means of removing downtime for poorly predictable branches (for example, a conditional branch depending on unpredictable data).
+</p>
+
+<p>An implicit predication scheme was chosen for the <archname/> architecture.
+This is due to the fact that according to statistics collected for other architectures where there is a predication,
+approximately 90% of instructions are executed without using predication, so spending several bits for the predicate in each instruction is not profitable.
+On the other hand, the remaining 10% of the instructions depend on unpredictable data and, without predication, introduce a significant delay in the pipeline operation.
+Therefore, architecture without predication will also be suboptimal.
+</p>
+
+<p>The special field <reg>psr.future</reg> is used to control the nullification of the subsequent instructions.
+The least significant bit of the register corresponds to the current instruction, other bits correspond to the subsequent instructions.
+At the end of the instruction, a right shift occurs.
+In the case of the branch, the future mask is completely cleared, thereby canceling all possible established nullifications.
+</p>
+
+<slot_table>
+<caption>Format of nullification instructions</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <ignored size="18">nullification condition</ignored>
+    <nmask>dist-no</nmask>
+    <nmask>dist-yes</nmask>
+    <nullify_opx>opx</nullify_opx>
+</slot>
+</slot_table>
+
+<p>Based on the condition of nullification (for different instructions consists of 2 registers, or register and shift, or register and immediate value)
+either the next <quote>n-yes</quote> instructions are nullified or the next <quote>n-no</quote> subsequent instructions (after first block <quote>n-yes</quote> instructions) are nullified in the <reg>psr.future</reg>.
+</p>
+
+<p>The following are examples of removing branches from short conditional statements and the corresponding use of nullification.
+In all cases, the management dependency is converted to data dependence and masking for future instructions.
+Everywhere it is assumed that the calculation of conditions gives side effects in the form of possible exceptional situations and should occur strictly predictively.
+If there can be no side effects in the form of exceptional situations, then, naturally,
+the calculation of a difficult condition can be done without predication and reduce unnecessary manipulations.
+</p>
+
+<table>
+<caption>Schematic examples of using predication</caption>
+<thead>
+<tr>
+<th>Conditional statement</th>
+<th>Predication</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>if (c1) {x1; }
+else {x2; }</code>
+</td>
+<td>
+<code>c1 c1yes, c1no
+x1 (c1no)
+x2 (c1yes)</code>
+</td>
+</tr>
+<tr>
+<td>
+<code>if (c1) {
+ x1;
+ if (c2) x2;
+ else x3;
+ x4;
+} else {
+ x5;
+ if (c3) x6;
+ else x7;
+ x8;
+}</code>
+</td>
+<td>
+<code>c1 c1yes, c1no
+x1 (c1no)
+c2 c2yes, c2no (c1no)
+x2 (c1no, c2no)
+x3 (c1no, c2yes)
+x4 (c1no)
+x5 (c1yes)
+c3 c3yes, c3no (c1yes)
+x6 (c1yes, c3no)
+x7 (c1yes, c3yes)
+x8 (c1yes)</code>
+</td>
+</tr>
+<tr>
+<td>
+<code>if (c1) {x1;
+} else if (c2) {x2;
+} else if (c3) {x3;
+} else {x4;
+}</code>
+</td>
+<td>
+<code>c1 c1yes, c1no
+c2 c2yes, c2no (c1yes)
+c3 c3yes, c3no (c1yes, c2yes)
+x1 (c1yes)
+x2 (c2yes)
+x3 (c3no)
+x4 (c3yes)</code>
+</td>
+</tr>
+<tr>
+<td>
+<code>if (c1 &amp; &amp; c2) {x1; }
+else {x2; }
+</code>
+</td>
+<td>
+<code>c1 c1yes, c1no
+c2 c2yes, c2no (c1no)
+x1 (c1no, c2no)
+x2 (c2yes)</code>
+</td>
+</tr>
+<tr>
+<td>
+<code>if (c1 || c2) {x1;
+} else {x2;
+}</code>
+</td>
+<td>
+<code>c1 c1yes, c1no
+c2 c2yes, c2no (c1yes)
+x1 (c2no)
+x2 (c1yes, c2yes)</code>
+</td>
+</tr>
+<tr>
+<td>
+<code>if (c1 || (c2 &amp; &amp; c3)) {
+ x1;
+} else {
+ x2;
+}</code></td>
+<td> <code>c1 (p0) p2, p3
+c2 (p3) p4, p5 (unc)
+c3 (p4) p2, p3
+x1 (p2)
+x2 (p3)</code></td></tr>
+<tr><td> <code>if (c1 &amp; &amp; (c2 || c3)) {
+ x1;
+} else {
+ x2;
+}</code></td>
+<td> <code>c1 (p0) p2, p3
+c2 (p2) p4, p5 (unc)
+c3 (p5) p4, p5 (unc)
+x1 (p4)
+x2 (p3)</code>
+</td></tr>
+
+</tbody>
+</table>
+</section>
+
+<section id = "nullification_insn">
+<title>Nullification Instructions</title>
+
+<p>Nullification instructions mark in the special field <reg>psr.future</reg> the fact that the execution of the subsequent instructions was canceled.
+Nullification instructions create mask of 1s for nullified instruction for if or else block, and or them with current future mask.
+Nullification instructions assume that the <quote>if</quote>-block precedes the <quote>else</quote>-block.
+</p>
+
+<p>Next instructions cancel future instructions depending on the result of comparing two registers.
+</p>
+
+<table>
+<caption>reg-reg nullification instructions</caption>
+<thead><tr>
+<th>Instruction</th>
+<th>Operation</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><mim>nul_eq_[i32|i64|i128]</mim></td><td><miname>nullify if equal</miname></td></tr>
+<tr><td><mim>nul_ne_[i32|i64|i128]</mim></td><td><miname>nullify if not equal</miname></td></tr>
+<tr><td><mim>nul_lt_[i32|i64|i128]</mim></td><td><miname>nullify if signed less</miname></td></tr>
+<tr><td><mim>nul_ge_[i32|i64|i128]</mim></td><td><miname>nullify if signed greater or equal</miname></td></tr>
+<tr><td><mim>nul_lt_[u32|u64|u128]</mim></td><td><miname>nullify if unsigned less</miname></td></tr>
+<tr><td><mim>nul_ge_[u32|u64|u128]</mim></td><td><miname>nullify if unsigned greater or equal</miname></td></tr>
+</tbody>
+</table>
+
+<slot_table>
+<caption>Nullification instruction format compare-regs</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <branch_opx>opx</branch_opx>
+    <nmask>dist-no</nmask>
+    <nmask>dist-yes</nmask>
+    <nullify_opx>opx</nullify_opx>
+</slot>
+</slot_table>
+
+<p>Next instructions cancel future instructions depending on the result
+of comparing the register and the 14(40)-bit immediate value, with or without a sign.
+The conditions are the same as for compare with immediate and branch instructions.
+</p>
+
+<table>
+<caption>reg-imm nullification instructions</caption>
+<thead><tr>
+<th>Instruction</th>
+<th>Operation</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><mim>nul_eq_imm_[i32|i64|i128]</mim></td><td><miname>nullify if equal</miname></td></tr>
+<tr><td><mim>nul_ne_imm_[i32|i64|i128]</mim></td><td><miname>nullify if not equal</miname></td></tr>
+<tr><td><mim>nul_lt_imm_[i32|i64|i128]</mim></td><td><miname>nullify if less</miname></td></tr>
+<tr><td><mim>nul_lt_imm_[u32|u64|u128]</mim></td><td><miname>nullify if less unsigned</miname></td></tr>
+<tr><td><mim>nul_ge_imm_[i32|i64|i128]</mim></td><td><miname>nullify if greater or equal</miname></td></tr>
+<tr><td><mim>nul_ge_imm_[u32|u64|u128]</mim></td><td><miname>nullify if greater or equal unsigned</miname></td></tr>
+<tr><td><mim>nul_mask_all</mim></td><td><miname>nullify if mask all bit set</miname></td></tr>
+<tr><td><mim>nul_mask_any</mim></td><td><miname>nullify if mask any bit set</miname></td></tr>
+<tr><td><mim>nul_mask_none</mim></td><td><miname>nullify if mask none bit set</miname></td></tr>
+<tr><td><mim>nul_mask_notall</mim></td><td><miname>nullify if mask not all bit set</miname></td></tr>
+</tbody>
+</table>
+
+<slot_table>
+<caption>Format of nullification instructions compare-with-immediate</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <cbimm>imm11</cbimm>
+    <nmask>dist-no</nmask>
+    <nmask>dist-yes</nmask>
+    <nullify_opx>opx</nullify_opx>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <imm size="29">imm40 (11+29)</imm>
+    <reserved size="13">0</reserved>
+</slot>
+</slot_table>
+
+<p>Instructions <mim>nul_bs</mim> (<miname>nullify if bit set</miname>)
+and <mim>nul_bs_imm</mim> (<miname>nullify if bit set immediate</miname>)
+cancel future instructions depending on whether or not a bit is set in the register.
+</p>
+
+<p>Analogous instructions <mim>nul_bc</mim> (<miname>nullify if bit clear</miname>)
+and <mim>nul_bc_imm</mim> (<miname>nullify if bit clear immediate</miname>)
+cancel future instructions depending on whether or not a bit is clear in the register.
+</p>
+
+<slot_table>
+<caption>Nullification instruction format <mim>nul_[bs|bc]</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <branch_opx>opx</branch_opx>
+    <nmask>dist-no</nmask>
+    <nmask>dist-yes</nmask>
+    <nullify_opx>opx</nullify_opx>
+</slot>
+</slot_table>
+
+<slot_table>
+<caption>Format of nullification instructions <mim>nul_[bs|bc]_imm</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <bitpos>shift</bitpos>
+    <branch_opx>opx</branch_opx>
+    <nmask>dist-no</nmask>
+    <nmask>dist-yes</nmask>
+    <nullify_opx>opx</nullify_opx>
+</slot>
+</slot_table>
+
+<p>Floating-point scalar values may be checked for nullification.
+Two registers may be compared.
+</p>
+
+<slot_table>
+<caption>Format of nullification instructions fp compare</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <branch_opx>opx</branch_opx>
+    <nmask>dist-no</nmask>
+    <nmask>dist-yes</nmask>
+    <nullify_opx>opx</nullify_opx>
+</slot>
+</slot_table>
+
+</section>
+
+<section id="nulllification_in_assembler">
+<title>Nullification in assembler</title>
+
+<p>Assembler eliminates the need to manually set predication distances.
+You can use named markers whose distances are computed automatically.
+General syntax:
+</p>
+
+<p><mim>INSTRUCTION NAME</mim> regular_parameters (pred1, pred2, pred3, ...)</p>
+
+<p>The predicate list indicates in which previously defined predicate instruction this instruction is the last in if or else-block.
+These predicates should be mentioned in previous nullification instructions
+no higher than 31 instructions from the current one for <quote>yes</quote> predicate and 63 instructions from the current one for <quote>no</quote> predicate.
+</p>
+
+<code>write    "test nullification (explicit distances)"
+ld_imm   %r10, 0
+nul_eq_i64  %r10, %r10, 5, 4
+write    "0" ; nullified in 5
+write    "1" ; nullified in 5
+write    "2" ; nullified in 5
+write    "3" ; nullified in 5
+write    "4" ; nullified in 5
+write    "5" ; nullified in 4
+write    "6" ; nullified in 4
+write    "7" ; nullified in 4
+write    "8" ; nullified in 4
+</code>
+
+<code>write    "test nullification (predicate names)"
+ld_imm      %r10, 0
+nul_eq_i64    %r10, %r10, equal, nonequal
+write    "0"
+write    "1"
+write    "2"
+write    "3"
+write    "4" (equal)
+write    "5"
+write    "6"
+write    "7"
+write    "8" (nonequal)
+</code>
+
+<p>Both variants print <quote>5 6 7 8</quote> (4 instructions else-block)
+and avoid printing <quote>0 1 2 3 4</quote> (5 instructions if-block) due to predication.
+</p>
+
+<p>The else-block may be empty if both <quote>yes</quote> and <quote>not</quote> distances refer to same instruction (dist_yes == dist_not).
+To create zero-length else-block, the last instruction of if-block should be marked as last for else-block also.
+To create zero-length if-block, the nullification instruction itself should be marked as last in if-block.
+</p>
+
+<p>In the next sample all 3 subsequent instructions will be nullified, because nullification condition is true.
+And there is no else-block.
+Both markers of block ends <quote>(equal)</quote> and <quote>(nonequal)</quote> are on same instruction.
+</p>
+
+<code>nul_eq_i64    r10, r10, equal, nonequal
+write    "0"                     ; part of equal-block
+write    "1"                     ; part of equal-block
+write    "2" (equal, nonequal)   ; part of equal-block
+</code>
+
+<p>In the next example all 3 subsequent else-block instructions will be executed, because nullification condition is false,
+and if-block for true nullification condition isn't presented.
+The <quote>(equal)</quote> marker or if-block is set just on predication instruction, so the size of if-block is zero - the distance from end of block to nullification instruction.
+</p>
+
+<code>nul_eq_i64    r10, r12, equal, nonequal (equal)
+write    "0"                ; part of nonequal-block
+write    "1"                ; part of nonequal-block
+write    "2" (nonequal)     ; part of nonequal-block
+</code>
+
+</section>
+
+</chapter>

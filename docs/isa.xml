@@ -1,0 +1,1256 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<chapter xmlns="http://www.example.com/postrisc" id="isa">
+<title>Instruction set architecture (ISA)</title>
+
+<preface>
+<p>This chapter provides a basic description of the <archname/> virtual processor instruction architecture (instruction set architecture or ISA).</p>
+</preface>
+
+<section id="isa_common_characteristic">
+<title>General description of the instruction set</title>
+
+<p>The architecture prefers security over performance.
+The exploitation of the unplanned program behavior should be avoided by design as possible.
+We should avoid ambiguous code interpretation.
+This was done for security reasons to prevent the <def>return-oriented programming</def> attacks like <quote>return to libc</quote> and to make all binary code available for inspection.
+</p>
+
+<p>The variable-length instruction encoding allows starting execution from the middle of instruction and extracting unplanned instruction sequences.
+It is possible an alternative interpretations of program code via decoding from the middle of a variable-length instruction.
+It should be impossible to continue execution from the middle of the instruction.
+To ensure this, we can use a fixed format or variable-length self-synchronizing format.
+The <archname/> chose a <def>fixed format</def>.
+So the variable-length instructions are forbidden and only fixed instruction encoding with aligned code chunks is allowed.
+</p>
+
+<p>Some architectures allow placing data inside code, by design or due to the global data addressing limitations.
+In such architectures, data parts may be placed near a function that uses them or accumulated into bigger <quote>data islands</quote> for several functions.
+The data in a code section may lead to possible data execution and exploiting the unplanned program behavior.
+So the strong <def>separation of code and data</def> should be enforced at architecture level, and mixing of code and data in the code section should be prohibited.
+This also improves paging/caching/TLB.
+</p>
+
+<p>The instruction set architecture is aimed to the most parallel extraction of instructions from memory and decoding.
+The format of the instructions is <def>regular</def> (the length of the decoded portion of the code is constant),
+but not strictly <def>fixed</def> (when all instructions are necessarily the same length),
+but almost fixed (inside the regular portion, the initial parts of the instructions are the same length,
+a possible continuation also has a fixed length).
+The unit of instruction flow is a 16-byte bundle assembled from three (usually) or two instructions.
+Bundles are always 16-byte aligned in memory.
+</p>
+
+<p>Unlike traditional systems like VLIW (very long instruction word),
+the instruction bundling reflects a parallel fetching and decoding process only,
+but not the process of dispatching, executing, or completing instructions.
+The instruction bundles do not describe the binding of individual instructions to functional units,
+the possibility (or necessity) of parallel execution and/or completion, execution timings.
+The architecture doesn't expose microarchitectural details to software such as load data delays, branch delays,
+other fixed pipeline delays (pipeline hazards), or fixed set of functional units.
+This is necessary for programs portability within a family of machines with different microarchitecture/performance.
+It is assumed that the program can be used without recompilation on machines with different sets of functional units and timings.
+</p>
+
+<p>Wherever possible, the instruction set tends to be <def>uniform</def>,
+that is, if some part of the instruction with the same meaning (for example, the number of the first register,
+the number of the second register, immediate value, etc.) is present in many instructions,
+then in all those instructions this part is placed at the same position.
+</p>
+
+<p>Instruction set architecture uses the <def>non-destructive</def> instruction format for any calculation
+over registers, i.e. the result register is always encoded separately from the operand registers,
+unlike CISC dual-argument architectures, where the result is forcibly combined with one of the operands.
+Accordingly, two-argument unary instructions, three-argument binary instructions
+and four-argument fused instructions (trinary) are valid.
+</p>
+
+<p>Fighting unpredictable branches or using vector extension requires the introduction of predicates and conditional execution,
+but to encode an additional predicate argument, each instruction needs extra space.
+The <archname/> architecture uses <def>implicit predication</def> via <def>nullification</def>.
+Each instruction can be overridden to nop by the previous nullification instructions.
+Instructions are executed <strong>conditionally</strong> and canceled instructions are considered as non-ops.
+When we don't use predication, we don't pay for it in instruction bits.
+</p>
+
+<p>In the new architecture, to reduce the data path, a limited number of frequently encountered combinations of operations are fused (combined in one machine instruction):
+addition (or subtraction) with a shift;
+multiplication with addition or subtraction;
+addition with a constant and memory access (base + displacement addressing mode);
+register addition (with shift) and memory access (indexed scaled addressing mode);
+comparison with the branch according to the result of the comparison;
+change of the cycle counter with comparison and branch according to the result of the comparison, etc.
+The architecture assumes the true hardware support for fused operations,
+rather than just compiling the code with hardware breakdown into the original operations.
+</p>
+
+<p>In architecture, superscalar out-of-order instruction execution equipment can be effectively used.
+To do this, the instruction set has several limitations.
+There are no implicit or optional instruction results, no global registers and flags.
+The number of possible side effects of the instructions is limited.
+Most instructions have a single register result. Several instructions have two register results.
+The number of operands is limited to three (and for most instructions, two) registers.
+</p>
+
+<p>For the <archname/> instruction architecture, the underlying technology is parallel
+(super-scalar) out-of-order execution of complex (fused) instructions with implicit predication.
+</p>
+
+<p>The instruction fetching and decoding will occur sequentially in program order.
+Out-of-order concurrent execution will be used to process at least one instruction bundle per cycle.
+The final completion of the instructions with the analysis of exceptions occurs sequentially in a program order.
+</p>
+
+<p>All operations on integer data occur in general registers, with 2-3 registers of the source operands
+(there may be a direct meaning or a direct shift) and one register of the result.
+</p>
+
+<p>All actions on floating-point data occur in general registers,
+with 1, 2 or 3 registers of the source operands and one register of the result.
+Floating-point instructions work on single/double/quadruple precision numbers in scalar or packed vector forms.
+</p>
+
+<p>Many scalar operation codes are complemented by a wide range of <def>vector</def> operations.
+A special vector extension is used to process multimedia and numerical data in ordinary registers.
+</p>
+
+<p>The architecture is of type <def>load/store</def>.
+Memory accesses are limited to load or store instructions that move data between registers and memory,
+and don't overlap whit using the loaded value.
+The memory access instructions usually expect <strong>strictly one</strong> memory access with <strong>a single</strong> virtual address translation.
+The unaligned memory accesses are possible, but strict data alignment is preferred.
+</p>
+
+<p>Global flags and dedicated registers prevent efficient parallel execution of instructions,
+but duplicating resources and introducing explicit dependencies between instructions also require extra bits to be explicitly described in the instruction.
+Branch instructions do not use flags but check the values of general registers.
+The basic operation is the combination of <quote>compare and jump</quote> in one instruction.
+</p>
+
+<p>To speed up the subroutine calls, to pass arguments through registers,
+and to reduce the number of memory accesses, a hardware circular buffer of <def>rotated</def> registers is implemented.
+It also improves code density by minimizing function prologs and epilogues.
+The second protected stack for rotating registers also protects the contents of all register frames from erroneous changes.
+The register rotation also complicates the return-oriented programming
+- there is no known assumption about the correspondence between the physical registers between different function frames.
+</p>
+
+<p>Optional hints about the frequency and nature of future cache line accesses
+carried out (if such information is available) in separate instructions.
+</p>
+
+<p>For <bold>immediates</bold> encoding there exist different variants with optional compression,
+interpreting binary values as signed/unsigned, separate sign bit and unsigned value, etc.
+The <archname/> uses simple 2-complement binary representation.
+Each immediate class is defined as signed or unsigned depend on its usage.
+Base addressing displacements are defined as always signed.
+Shift amounts are always unsigned.
+Compare immediates for less/greater are signed or unsigned depend on type.
+Compare immediates for equal are chosen to be signed.
+</p>
+
+</section>
+
+<section id="isa_register_files">
+<title>Register files</title>
+
+<p>Processor resources include register files, special registers, associative search structures, interrupts.
+Some resources are available for user programs, others are necessary for the functioning of the operating system.
+Each processor core has its own set of registers that contain the current state of the core.
+All registers are divided into register files.
+There are no registers that are not included in any register file.
+</p>
+
+<p>It is known that for the usual code, increasing the register file size above 32 has negligible results.
+But using more registers has a sense for high-performance computing, digital signal processing, accelerating 3D graphics, and game physics.
+IBM uses the 128x128 SIMD register file in its POWER VMX extension and 64x128 in its POWER VSX extension.
+Fujitsu uses the 256x128 register file in its SPARC FX HPC-ACE extension.
+Intel Itanium had 128x82 floating-point registers for HPC.
+</p>
+
+<p>For the <archname/> architecture, the 128x128 register file is chosen as a compromise between ordinary usage and special computing purposes.
+</p>
+
+<table>
+<caption>Register Files</caption>
+<thead>
+<tr>
+<th>Register file</th>
+<th>Number of registers</th>
+<th>The size of the registers in bits</th>
+<th>Additional info</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>General Purpose Registers</td><cellc>128</cellc><cellc>128</cellc>
+<td>General-purpose registers are intended for manipulations with scalars 1,2,4,8,16 bytes long or vectors of numbers 1,2,4,8 bytes long.
+General purpose registers are divided into 120 rotated windowed and 8 global registers.
+In each group, all registers are equal at the architecture level.
+Registers can be used to manipulate real numbers of quadruple precision,
+single and double precision packed vectors of real numbers,
+packed integer vectors of length 1,2,4,8 bytes.
+Exceptions from equality: local: <reg>r0</reg>, globals: <reg>tp</reg>, <reg>fp</reg>, <reg>sp</reg>, <reg>gz</reg>.
+</td>
+</tr>
+<tr>
+<td>Special Purpose Registers</td><cellc>up to 128</cellc><cellc>32/64/128</cellc>
+<td>As the name implies, special-purpose registers have different purposes.
+Not all of the 128 possible special registers are implemented.
+The ability to read/write depends on the priority level, register number, etc.</td>
+</tr>
+<tr>
+<td>CPU identification registers</td><cellc>implementation-defined</cellc><cellc>64</cellc>
+<td>The read-only registers for reporting hardware capabilities/features.
+Available only indirectly.</td>
+</tr>
+<tr>
+<td>Instruction TLB translation registers</td><cellc>implementation-defined</cellc><cellc>128</cellc>
+<td>The fixed translations which can't be evicted from the Instruction TLB buffer.
+Available only indirectly.</td>
+</tr>
+<tr>
+<td>Data TLB translation registers</td><cellc>implementation-defined</cellc><cellc>128</cellc>
+<td>The fixed translations which can't be evicted from the Data TLB buffer.
+Available only indirectly.</td>
+</tr>
+<tr>
+<td>Performance monitor registers</td><cellc>implementation-defined</cellc><cellc>64</cellc>
+<td>The counters for the internal processor core statistic like number of TLB misses, instruction/data cache misses, branch mispredictions, etc.
+Available only indirectly.</td>
+</tr>
+<tr>
+<td>Instruction breakpoint registers</td><cellc>implementation-defined</cellc><cellc>64</cellc>
+<td>The instruction breakpoint register when enabled allows stopping execution on preferred code addresses.</td>
+</tr>
+<tr>
+<td>Data breakpoint registers</td><cellc>implementation-defined</cellc><cellc>64</cellc>
+<td>The data breakpoint register when enabled allows stopping execution on preferred data addresses and/or addressing types like read/write/backstore/etc.</td>
+</tr>
+</tbody>
+</table>
+
+</section>
+
+<section id="isa_instruction_format">
+<title>Instructions format</title>
+
+<p>Existing RISC architectures have exhausted the possibilities of a fixed 32-bit instruction format.
+Deep loop unrolling, function inlining, other compiler optimization technologies require more than 32 general-purpose (and floating-point) registers, preferably at least 128.
+However, increasing the number of registers over 32 with the 32-bit RISC instruction length turned out to be difficult.
+The three-address format requires at least <formula>3<times/>log<sub>2</sub>(128)</formula> or 21 bits for register numbers
+(and a four-address fused instruction even 28 bits).
+</p>
+
+<p>The decision to separate code and data forces us to support the effective addressing modes to access global/static/const data outside code section.
+The approach with several instructions (like the high/low displacement parts) to access global data seems unfit.
+But existing 32-bit instructions aren't enough to access the global data from any code position by one instruction.
+For the biggest known projects, their size is estimated as 150-250 MiB (210 MiB Chromium, 380 MiB Linux kernel <quote>allyesconfig</quote> build, various CADs, etc),
+which requires displacements with at least 28-30 bit size for future code blow.
+The <archname/> supports programs up to 256 MiB with direct access to global data by one single-slot instruction.
+</p>
+<!--
+<p>In addition to the traditional instructions in these architectures, numerous hint instructions have appeared:
+by caching level, direction of branch, speculative data movement, nullification, etc.
+Being taken out in separate instructions, these tips irrationally use bit space,
+since they are, in fact, the product of an unplanned development of the original architecture.
+-->
+<p>Some vector processors (like NEC SX Aurora) or video cards use a longer fixed 64-bit format.
+But this doubles the program size and doesn't justify the possible benefits for the general purpose architecture.
+There remains the only intermediate format, consistent with the <formula>2<sup>n</sup></formula> byte alignment,
+with 3 instructions for 42 bits (<def>slots</def>), packed in 128-bit <def>bundles</def>.
+With the 128-bit format we can't transfer control to any instruction in the bundle, except the first, and execute part of the bundle.
+The bundle is a minimal execution unit. This approach for encoding is similar to Intel IA64 Itanium.
+</p>
+
+<p>The <archname/> architecture defines that a 128-bit bundle consists of a 2-bit template and three 42-bit slots.
+There are two types of instructions: one or two bundle slots length.
+A bundle may contain three simple one-slot instructions, or a double-slot instruction and a one-slot (direct order),
+or a one-slot instruction and a double-slot (reversed order).
+</p>
+
+<p>All operation codes are placed in  the first slot of double-slot instruction,
+so the second slot is used for the immediate extensions only.
+If the instruction format allows expansion to the second slot and the formation of a long instruction,
+then some immediate fields may have different lengths in short and long formats.
+For example, <param>simm21(63)</param> means that it is a 21-bit short format field, expandable to 63 bits in a long format.
+</p>
+
+<p>The splitting of a bundle into instructions is completely determined by a 2-bit template,
+so that the main and additional instruction codes for different lengths of the instruction format do not overlap.
+However, they are defined to be always identical.
+The long instructions are always the extended versions of short instructions with the extended immediates.
+The following table shows the packaging of the template and instructions into bundles.
+</p>
+
+<table width="86%">
+<caption>The bundle splitting into slots and template</caption>
+<thead><tr>
+<th>Slot 3<br/>(bits 86<hellip/>127)</th>
+<th>Slot 2<br/>(bits 44<hellip/>85)</th>
+<th>Slot 1<br/>(bits 2<hellip/>43)</th>
+<th width="18%">Template<br/>(bits 0<hellip/>1)</th>
+</tr></thead>
+<tbody>
+<tr>
+<td class="gpr">42 bits</td>
+<td class="gpr">42 bits</td>
+<td class="gpr">42 bits</td>
+<td class="imm">00</td>
+</tr><tr>
+<td class="tdb" colspan="2">84 bits</td>
+<td class="gpr">42 bits</td>
+<td class="imm">01</td>
+</tr><tr>
+<td class="gpr">42 bits</td>
+<td class="tdb" colspan="2">84 bits</td>
+<td class="imm">10</td>
+</tr><tr>
+<td class="res" colspan="3">126 bits (reserved)</td>
+<td class="imm">11</td>
+</tr>
+</tbody>
+</table>
+
+<p>The following table shows the instruction formats and the instruction fields lengths in bits for one-slot instructions.
+The high 7 bits of {35:41} always define the primary operation code (or just <param>opcode</param>) of the instruction.
+Many instructions also have one or two extended opcode (<param>opx</param>).
+The remaining bits of the instruction contain one or more fields in various formats.
+</p>
+
+<table width="98%">
+<caption>Instruction formats</caption>
+<tr>
+<td class="bit" rowspan="2" width="16%">Name <br/>format</td>
+<td colspan="42" class="bit">Format bits</td></tr>
+<slotbits/>
+<tr><td>ld_imm *</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <call>simm28(64)</call>
+</tr>
+<tr><td>mem_iprel *</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <call>uimm28(64)</call>
+</tr>
+<tr><td>call *</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <call>simm28(60)x16</call>
+</tr>
+<tr><td>jmp *</td>
+    <opc>opcode</opc>
+    <raopx>opx</raopx>
+    <call>simm28(60)x16</call>
+</tr>
+<tr><td>write *</td>
+    <opc>opcode</opc>
+    <raopx>opx</raopx>
+    <call>uimm28(64)</call>
+</tr>
+<tr><td>nop *</td>
+    <opc>opcode</opc>
+    <raopx>opx</raopx>
+    <call>simm28(64)</call>
+</tr>
+<tr><td>alloc</td>
+    <opc>opcode</opc>
+    <raopx>opx</raopx>
+    <framesize>framesize</framesize>
+    <res21>0</res21>
+</tr>
+<tr><td>alloc_sp *</td>
+    <opc>opcode</opc>
+    <raopx>opx</raopx>
+    <framesize>framesize</framesize>
+    <binimm>uimm21(63)</binimm>
+</tr>
+<tr><td>retf *</td>
+    <opc>opcode</opc>
+    <raopx>opx</raopx>
+    <regzero>0</regzero>
+    <binimm>uimm21(63)</binimm>
+</tr>
+<tr><td>cache_simm *</td>
+    <opc>opcode</opc>
+    <raopx>opx</raopx>
+    <gpr>rb</gpr>
+    <binimm>simm21(63)</binimm>
+</tr>
+<tr><td>bin_simm *</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <binimm>simm21(63)</binimm>
+</tr>
+<tr><td>bin_uimm *</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <binimm>uimm21(63)</binimm>
+</tr>
+<tr><td>loop *</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <branch_opx>opx</branch_opx>
+    <loop_stride>uimm6</loop_stride>
+    <loop_disp>simm11(30)x16</loop_disp>
+</tr>
+<tr><td>br_eh *</td>
+    <opc>opcode</opc>
+    <raopx>opx</raopx>
+    <gpr>rb</gpr>
+    <branch_opx_res>0</branch_opx_res>
+    <branch>simm17(30)x16</branch>
+</tr>
+<tr><td>br_rr *</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <branch_opx>opx</branch_opx>
+    <branch>simm17(30)x16</branch>
+</tr>
+<tr><td>br_bit *</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <bitpos>shift</bitpos>
+    <branch_opx>opx</branch_opx>
+    <branch>simm17(30)x16</branch>
+</tr>
+<tr><td>br_simm *</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <cbimm>simm11(40)</cbimm>
+    <branch>simm17(30)x16</branch>
+</tr>
+<tr><td>br_uimm *</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <cbimm>uimm11(40)</cbimm>
+    <branch>simm17(30)x16</branch>
+</tr>
+<tr><td>nul_simm *</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <cbimm>simm11(40)</cbimm>
+    <nmask>dist-no</nmask>
+    <nmask>dist-yes</nmask>
+    <nullify_opx>opx</nullify_opx>
+</tr>
+<tr><td>nul_uimm *</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <cbimm>uimm11(40)</cbimm>
+    <nmask>dist-no</nmask>
+    <nmask>dist-yes</nmask>
+    <nullify_opx>opx</nullify_opx>
+</tr>
+<tr><td>nul_rs</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <bitpos>shift</bitpos>
+    <branch_opx>opx</branch_opx>
+    <nmask>dist-no</nmask>
+    <nmask>dist-yes</nmask>
+    <nullify_opx>opx</nullify_opx>
+</tr>
+<tr><td>nul_rr</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <branch_opx>opx</branch_opx>
+    <nmask>dist-no</nmask>
+    <nmask>dist-yes</nmask>
+    <nullify_opx>opx</nullify_opx>
+</tr>
+<tr><td>mid_bin_simm *</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <mid_binimm>simm14(56)</mid_binimm>
+    <fused_opx>opx</fused_opx>
+</tr>
+<tr><td>r4</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <gpr>rc</gpr>
+    <gpr>rd</gpr>
+    <fused_opx>opx</fused_opx>
+</tr>
+<tr><td>r3s1</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <gpr>rc</gpr>
+    <bitpos>pos</bitpos>
+    <fused_opx>opx</fused_opx>
+</tr>
+<tr><td>r2s2</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <bitpos>shift</bitpos>
+    <bitpos>pos</bitpos>
+    <fused_opx>opx</fused_opx>
+</tr>
+<tr><td>r3s2</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <gpr>rc</gpr>
+    <bitpos>shift</bitpos>
+    <bitpos>pos</bitpos>
+</tr>
+<tr><td>gmemx *</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <gpr>rc</gpr>
+    <scale>scale</scale>
+    <indexed_opx>opx</indexed_opx>
+    <idisp>simm7</idisp>
+</tr>
+<tr><td>RbcScale</td>
+    <opc>opcode</opc>
+    <regzero>0</regzero>
+    <gpr>rb</gpr>
+    <gpr>rc</gpr>
+    <scale>scale</scale>
+    <misc_opx>opx</misc_opx>
+</tr>
+<tr><td>Rbc</td>
+    <opc>opcode</opc>
+    <regzero>0</regzero>
+    <gpr>rb</gpr>
+    <gpr>rc</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</tr>
+<tr><td>mspr</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <regzero>0</regzero>
+    <spr>spr</spr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</tr>
+<tr><td>r2</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <regzero>0</regzero>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</tr>
+<tr><td>r2s1</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <bitpos>shift</bitpos>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</tr>
+<tr><td>r3</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <gpr>rc</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</tr>
+<tr>
+    <td>gmemu</td>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <stride>simm10</stride>
+    <misc_opx>opx</misc_opx>
+</tr>
+<tr>
+    <td>int</td>
+    <opc>opcode</opc>
+    <regzero>0</regzero>
+    <gpr>rb</gpr>
+    <stride>simm10</stride>
+    <misc_opx>opx</misc_opx>
+</tr>
+<tr><td>NoArgs</td>
+    <opc>opcode</opc>
+    <noargs>opx</noargs>
+</tr>
+</table>
+
+<table>
+<caption>Used text (and color) notation for instruction fields</caption>
+<thead><tr>
+<th>Field</th>
+<th>Length</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr><td class="opc">opcode</td><td>7</td><td>primary operation code</td></tr>
+<tr><td class="opx">opx</td><td>4, 7, 11</td><td>extended operation code</td></tr>
+<tr><td class="gpr">ra, rb, rc, rd</td><td>7</td><td>general register number, operand or result</td></tr>
+<tr><td class="spr">spr</td><td>7</td><td>special register number</td></tr>
+<tr><td class="imm">uimm, simm</td><td>7, 10, 11, 21, 28</td><td>unsigned/signed immediate</td></tr>
+<tr><td class="imm">simmNNx16</td><td>11, 17, 28</td><td>signed immediate of branch/jump/call</td></tr>
+<tr><td class="imm">dist-yes, dist-no</td><td>5</td><td>nullification block size</td></tr>
+<tr><td class="tdb">shift, pos</td><td>7</td><td>bit number, shift value, field legth</td></tr>
+<tr><td class="mod">scale</td><td>3</td><td>indexing scale factor</td></tr>
+<tr><td class="res">0</td><td>various</td><td>unused (reserved, must be zeros)</td></tr>
+</tbody>
+</table>
+
+<p>Formats marked in the table with asterisk (*) allow the instruction continuation to the next bundle slot with the formation of a two-slot instruction.
+The primary codes of single and double-slot instructions are the same.
+The assembled code should directly specify a forced extension of the instruction to the second slot by the additional suffix <quote>.l</quote> (long).
+The assembler adds dummy <mim>nop</mim> instructions to the code if the long instruction doesn't fit in the rest of the bundle and need to start a new bundle.
+</p>
+
+<code>add_imm_i64    r23, r23, 1234
+add_imm_i64.l  r23, r23, 12345678</code>
+
+<note>Btw, 42-bit slot format is in line with the <quote>Answer to the Ultimate Question of Life, The Universe, and Everything</quote>!
+</note>
+
+</section>
+
+<section id="isa_code_addressing_modes">
+<title>Instruction addressing modes</title>
+
+<p>The calculation of effective addresses takes place with cyclic rounding modulo <formula>2<sup>64</sup></formula>.
+Absolute addressing directly in the instructions is missing.
+Only <em>position independent code</em> (<def>PIC</def>) can be used.
+Target addresses for addressing executable code can only be calculated relative to the address of the current instruction bundle
+(instruction pointer <reg>ip</reg>) or relative to the base addresses in general registers.
+</p>
+
+<p>The architecture supports 3 modes for <reg>ip</reg>-relative code addressing:
+</p>
+
+<p>EA = <reg>ip</reg> + 16 <times/> sign_extend(disp)
+</p>
+
+<p><def>The call/jump displacement</def> takes up 28 bits in the instruction slot and allows
+to encode the branch to a maximum of <formula><plusmn/>2</formula> GiB in both directions from the current address.
+If the two-slot instruction is used, the branch distance is maximum <formula><plusmn/>8</formula> EiB on either side of the current address.
+</p>
+
+<slot_table>
+<caption>The jump displacement</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <ignored size="7">other</ignored>
+    <call>simm28x16</call>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <reserved size="10">0</reserved>
+    <imm size="32">simm60x16 (32+28)</imm>
+</slot>
+</slot_table>
+
+<p><def>The branch displacement</def> takes 17 bits in the instruction slot
+and allows to encode the branch to a maximum of <formula><plusmn/>1</formula> MiB in both directions from the current address.
+If the two-slot instruction is used, the displacement takes 30 bits, and the branch distance is <formula><plusmn/>8</formula> GiB in both directions.
+The branch condition is encoded by the <em>other</em> parts of the instruction.
+</p>
+
+<slot_table>
+<caption>The branch displacement</caption>
+<slotbits/><slot>
+    <opc>opcode</opc>
+    <ignored size="18">other</ignored>
+    <branch>simm17x16</branch>
+</slot></slot_table>
+
+<slot_table>
+<extslotbits/><slot>
+    <ignored size="29">other</ignored>
+    <imm size="13">simm30x16 (17+13)</imm>
+</slot></slot_table>
+
+<p><def>The loop displacement</def> takes 11 bits in the instruction slot
+and allows to encode the branch to a maximum of <formula><plusmn/>16</formula> KiB in both directions from the current address.
+If the two-slot instruction is used, the displacement takes 30 bits, and the branch distance is <formula><plusmn/>8</formula> GiB in both directions.
+The branch condition is encoded by the <em>other</em> parts of the instruction.
+</p>
+
+<slot_table>
+<caption>The loop displacement</caption>
+<slotbits/><slot>
+    <opc>opcode</opc>
+    <ignored size="24">other</ignored>
+    <loop_disp>simm11x16</loop_disp>
+</slot></slot_table>
+
+<slot_table>
+<extslotbits/><slot>
+    <ignored size="23">other</ignored>
+    <imm size="19">simm30x16 (11+19)</imm>
+</slot></slot_table>
+
+<p>The linker, creating the image of the program module, must correctly replace all symbolic links for procedures and global data with offsets,
+where the symbol is accessed, to the location of the symbol itself.
+That is, for example, calls to the same static procedure from different places in the program occur with different relative displacements.
+</p>
+
+<p>The architecture also supports the <strong>base-relative</strong> instruction addressing.
+The effective address is computed as a sum of 2 registers, aligned to the bundle boundary.
+</p>
+
+<p>EA = (<param>base</param> + <param>index</param>) &amp; mask{63:4}.</p>
+
+<slot_table>
+<caption>base-relative branch</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <ignored size="7">other</ignored>
+    <gpr>base</gpr>
+    <gpr>index</gpr>
+    <ignored size="14">other</ignored>
+</slot>
+</slot_table>
+
+</section>
+
+<section id="isa_data_addressing_modes">
+<title>Data addressing modes</title>
+
+<p>Absolute data addressing isn't directly supported.
+The architecture makes it impossible to put absolute static addresses into the instruction code.
+Only a position-independent code is available (PIC/PIE).
+Target absolute addresses can be calculated relative to the address of the current instruction bundle or reserved base registers only.
+The architecture supports the following data addressing modes:
+</p>
+
+<ol>
+<li><em>forward <reg>ip</reg>-relative</em></li>
+<li><em>base plus displacement</em></li>
+<li><em>indexed post-scaled</em></li>
+<li><em>indexed pre-scaled</em></li>
+<li><em>base with immediate pre-offset</em></li>
+<li><em>base with immediate post-offset</em></li>
+</ol>
+
+<p>For <def>relative addressing</def>, the immediate unsigned <param>disp</param> field,
+which is 28 bits or 64 bits for a double-slot instruction,
+after unsigned extension, is added to the contents of the instruction pointer to produce a 64-bit effective address.
+We assume that the program data sections like <quote>.data</quote> or <quote>.rodata</quote>
+are placing strictly after the code sections like <quote>.text</quote> in the loaded program.
+The 28-bit immediate value allows to address 256 MiB forward from the current bundle.
+The double-slot instructions allow addressing full 64-bit address space.
+</p>
+
+<p>EA = <reg>ip</reg> + zero_extend(disp)</p>
+
+<slot_table>
+<caption>Relative addressing</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>target</gpr>
+    <jump>uimm28</jump>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <reserved size="6">0</reserved>
+    <imm size="36">uimm64 (28+36)</imm>
+</slot>
+</slot_table>
+
+<p>For the <def>base plus displacement addressing mode</def> the <param>disp</param> displacement, which is 21 bits or 63 bits for a double-slot instruction,
+after sign extension, is added to the contents of the base register, to produce a 64-bit effective address.
+The 21-bit immediate value <param>disp</param> allows addressing <plusmn/>1 MiB in both directions from the base address.
+</p>
+
+<p>EA = <param>base</param> + sign_extend(<param>disp</param>)</p>
+
+<slot_table>
+<caption>Base plus displacement addressing</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>target</gpr>
+    <gpr>base</gpr>
+    <binimm>simm21</binimm>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <imm size="42">simm63 (21+42)</imm>
+</slot>
+</slot_table>
+
+<p>The <def>indexed pre-scaled</def> addressing mode.
+Suitable for signed C/C++ types, for which overflow is undefined behavior.
+The potential overflow may be ignored and address computation may be transformed/simplified.
+The immediate offset for array indexing may be merged with object offset used after scaling.
+</p>
+
+<ol>
+<li>the <param>index</param> zero/sign extended to whole 64-bit for 32-bit index,</li>
+<li><param>index</param> is shifted left by the <param>scale</param>,</li>
+<li>7-bit signed displacement <param>disp</param> (<minus/>64<hellip/>63) is added,</li>
+<li><param>base</param> is added to produce a 64-bit effective address.</li>
+</ol>
+
+<p>EA = <param>base</param> + (extend(<param>index</param>) <lshift/> <param>scale</param>) + sign_extend(<param>disp</param>)</p>
+
+<p>The <def>indexed post-scaled</def> addressing mode.
+Suitable for unsigned C/C++ types, for which wraparound is defined behavior.
+The potential overflow can't be ignored.
+The immediate offset for array indexing should be added first and the result truncated - before scaling.
+</p>
+
+<ol>
+<li>the u32 or u64 <param>index</param> is summed with 7-bit signed displacement <param>disp</param> (<minus/>64<hellip/>63),</li>
+<li>the sum is zero/sign extended to whole 64-bit for 32-bit index,</li>
+<li>the sum is shifted left by the <param>scale</param>,</li>
+<li><param>base</param> is added to produce a 64-bit effective address.</li>
+</ol>
+
+<p>EA = <param>base</param> + (extend(<param>index</param> + sign_extend(<param>disp</param>)) <lshift/> <param>scale</param>)</p>
+
+<slot_table>
+<caption>Indexed (scaled) addressing</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>target</gpr>
+    <gpr>base</gpr>
+    <gpr>index</gpr>
+    <scale>scale</scale>
+    <indexed_opx>opx</indexed_opx>
+    <idisp>simm7</idisp>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <imm size="42">simm49 (7+42)</imm>
+</slot>
+</slot_table>
+
+<p>For <def>base with immediate post-offset</def> addressing mode the 10-bit <param>stride</param> immediate
+is added to base after memory access.
+</p>
+
+<p>EA = <param>base</param></p>
+<p><param>base</param> = EA + sign_extend(<param>stride</param>)</p>
+
+<p>For <def>base with immediate pre-offset</def> addressing mode the 10-bit <param>stride</param> immediate
+is added to base before memory access.
+</p>
+
+<p>EA = <param>base</param> + sign_extend(<param>stride</param>)</p>
+<p><param>base</param> = EA</p>
+
+<slot_table>
+<caption>base with base immediate pre/post-update</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>target</gpr>
+    <gpr>base</gpr>
+    <stride>simm10</stride>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <imm size="42">simm52 (10+42)</imm>
+</slot>
+</slot_table>
+
+<p>Other addressing methods can be implemented through the above.
+Absolute addressing of data can be implemented by using any register with a value of 0 as the base.
+Static data should be aligned to 4-byte boundary, but if not - can be addressed by base+displacement addressing after placing the base address in one of the free registers.
+The special instruction <mim>lda_r</mim> (<miname>compute address relative</miname>) makes this preparation easier.
+</p>
+
+<code>lda_r base, text_hi (ip_relative_offset)
+ld_u64 dst, base, text_lo (ip_relative_offset)
+</code>
+
+<p>Here <param>ip_relative_offset</param> is the label of the loaded object in the immutable data segment,
+<function>text_hi</function> is a built-in assembler function for calculating the relative address of the instruction bundle (or aligned 16-byte data portion),
+<function>text_lo</function> is a built-in assembler function for calculating the displacement within a bundle (portion).
+Using the <mim>lda_r</mim> instruction, you can address 1 GiB on either side of the current position,
+or the entire address space, if you use the two-slot version of <mim>lda_r</mim>:
+</p>
+
+<code>lda_r.l base, text_hi (ip_relative_offset)
+ld_u64 dst, base, text_lo (ip_relative_offset)
+</code>
+
+<p>Addressing of private data can be implemented by first placing the correct base address in one of the free registers.
+Special instruction <mim>lda_n</mim> (<miname>compute address near</miname>)
+allows to calculate the nearest base address pointing to the middle of the page containing the desired object.
+</p>
+
+<code>lda_n base, gp, data_hi (gp_relative_offset)
+ld_u64 dst, base, data_lo (gp_relative_offset)
+</code>
+
+<p>Here <param>gp_relative_offset</param> is the label of the object in the data segment,
+<function>data_hi</function> is a built-in assembler function to calculate the older part of the relative offset
+(relative to <reg>gp</reg>) to the middle of the data page where the label is located,
+<function>data_lo</function> is a built-in assembler function to calculate the offset of the label relative to the middle of the page.
+Using the <mim>lda_n</mim> instruction, you can address 1 GiB of private data
+(or the entire address space if you use the two-slot version of <mim>lda_n</mim>).
+</p>
+
+<p>You can also immediately use the double-slot memory access instructions with addressing <formula>2<sup>63</sup></formula> bytes in both directions from the base address.
+</p>
+
+<code>ld_u64.l dst, gp, gp_relative_offset
+</code>
+
+</section>
+
+<section id="isa_special_registers">
+<title>Special registers</title>
+
+<p>There are several special registers, each 64 bit length.
+Not all special registers are available for direct access, most are available only for privileged software (at the system level).
+The table provides information on the purpose of special registers and their availability in protected and privileged mode.
+</p>
+
+<table>
+<caption> Special Registers</caption>
+<thead>
+<tr>
+ <th width="40%"> Group</th>
+ <th> Registers</th>
+ <th> Description</th>
+</tr>
+</thead>
+<tbody>
+
+<tr><td rowspan="7">Registers available to the program at any privilege level for direct and/or indirect reading and updating</td>
+<td>ip</td> <td> instruction pointer</td></tr>
+<tr><td>fpcr</td><td>floating-point status/control register</td></tr>
+<tr><td>rsc</td><td>register stack control</td></tr>
+<tr><td>rsp</td><td>register stack pointer</td></tr>
+<tr><td>eip</td><td>exception instruction pointer</td></tr>
+<tr><td>ebs</td><td>exception bit stack</td></tr>
+<tr><td>eca</td><td>exception context address</td></tr>
+
+<tr><td rowspan="8">Registers available for reading/writing only at the system privilege level</td>
+<td>bsp</td><td>bottom stack pointer</td></tr>
+<tr><td>peb</td><td>process env block</td></tr>
+<tr><td>teb</td><td>thread env block</td></tr>
+<tr><td>reip</td><td>returnable default exception instruction pointer</td></tr>
+<tr><td>itc</td><td>interval time counter</td></tr>
+<tr><td>itm</td><td>interval time match register</td></tr>
+<tr><td>psr</td><td>processor status register</td></tr>
+<tr><td>pta</td><td>page table addresses</td></tr>
+
+<tr><td rowspan="3">Debug facility registers</td>
+<td>ibr0<hellip/>ibr3</td><td>instruction breakpoint registers</td></tr>
+<tr><td>dbr0<hellip/>dbr3</td><td>data breakpoint registers</td></tr>
+<tr><td>mr0<hellip/>mr8</td><td>monitoring registers</td></tr>
+
+<tr><td rowspan="3">Registers for switching to the kernel and making system calls are available only in the kernel</td>
+<td>kip</td><td>kernel instruction pointer</td></tr>
+<tr><td>ksp</td><td>kernel stack pointer</td></tr>
+<tr><td>krsp</td><td>kernel register stack pointer</td></tr>
+
+<tr><td rowspan="7">Registers for interrupt handling (interrupt context descriptors, shadow copies of general registers),
+interrupts available in the handler</td>
+<td>iip</td><td>interruption instruction pointer</td></tr>
+<tr><td>iipa</td><td>interruption instruction previous address</td></tr>
+<tr><td>ipsr</td><td>interruption processor status register</td></tr>
+<tr><td>cause</td><td>interruption cause register</td></tr>
+<tr><td>iva</td><td>interruption vector address</td></tr>
+<tr><td>ifa</td><td>interruption faulting address</td></tr>
+<tr><td>iib</td><td>interruption instruction bundle</td></tr>
+
+<tr><td rowspan="9">Registers of the built-in interrupt controller for controlling external interrupts
+and asynchronous interrupts from the processor itself (available only at the system level)</td>
+<td>tpr</td><td>task priority register</td></tr>
+<tr><td>iv</td><td>interrupt vector</td></tr>
+<tr><td>lid</td><td>local identification register (read only)</td></tr>
+<tr><td>irr0<hellip/>irr3</td><td>interrupt request registers (read only)</td></tr>
+<tr><td>isr0<hellip/>isr3</td><td>interrupt service registers (read only)</td></tr>
+<tr><td>itcv</td><td>interval time counter vector</td></tr>
+<tr><td>tsv</td><td>termal sensor vector</td></tr>
+<tr><td>pmv</td><td>performance monitor vector</td></tr>
+<tr><td>cmcv</td><td>corrected machine-check vector</td></tr>
+</tbody>
+</table>
+
+<p>Direct access to special registers can be obtained using instructions
+<mim>get_spr</mim> (<miname>get special-purpose register</miname>) and
+<mim>set_spr</mim> (<miname>set special-purpose register</miname>).
+You can copy the special register to the general register (<mim>get_spr</mim>),
+perform the necessary operations, and then put the new value in a special register (<mim>set_spr</mim>).
+</p>
+
+<slot_table>
+<caption>The format of the <mim>set_spr</mim> and <mim>get_spr</mim> instructions</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <regzero>0</regzero>
+    <spr>spr</spr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<p>Syntax:</p>
+
+<code><mim>get_spr</mim> ra, spr
+<mim>set_spr</mim> ra, spr
+</code>
+
+<p>The special register <regname>instruction pointer</regname> (<reg>ip</reg>) stores the address of the bundle containing the currently executing instruction.
+The register <reg>ip</reg> can be read directly via <mim>get_spr</mim> instruction,
+but better to get the <reg>ip</reg>-relative address (including those with zero displacement) using the <mim>lda_r</mim>/<mim>lda_iprel</mim> instruction.
+The register <reg>ip</reg> cannot be changed directly (via <mim>set_spr</mim> instruction),
+but it automatically increases at the end of the bundle execution, and also receives a new value as a result of the execution of taken branch instructions.
+Also <reg>ip</reg> is an implicitly implied operand in a relative branch.
+Because the instruction format is regular and instruction bundles have a fixed length of 16 bytes and are aligned on a 16-byte boundary.
+The <reg>ip</reg> register lower 4 bits are always zero, writing them is ignored.
+</p>
+
+<reg_table>
+<caption>Register format <reg>ip</reg></caption>
+<bits64/>
+<reg_row>
+    <imm size="60">bundle address</imm>
+    <reserved size="4">0</reserved>
+</reg_row>
+</reg_table>
+
+
+<p>Special <regname>floating-point status/control register</regname> (<reg>fpcr</reg>)
+designed to control the floating-point unit <link href="#fpu_regs"> FPU</link>.
+</p>
+
+<p>Special registers <reg>rsc</reg>, <reg>rsp</reg> are used to control <link href="#register_rotation">register rotation</link>
+and flushing the contents of the circular register buffer into memory.
+</p>
+
+<p>Special registers
+<reg>eip</reg> (exception instruction pointer),
+<reg>reip</reg> (returnable default exception instruction pointer),
+<reg>ebs</reg> (exception bit stack),
+<reg>eca</reg> (exception context address)
+are used to implement almost zero-cost software exceptions (like C++ try/catch/throw).
+</p>
+
+<p>The 64-bit special <regname>processor status register</regname> (<reg>psr</reg>) controls the current core behavior.
+It is writable only at the most privileged level, its changing requires explicit serialization.
+</p>
+
+<reg_table>
+<caption> Register format <reg>psr</reg></caption>
+<hibits/>
+<reg_row>
+ <bitfield size="32">future</bitfield>
+</reg_row>
+<bits32/>
+<reg_row>
+ <reserved size="14">0</reserved>
+ <bitfield size="2">rs</bitfield>
+ <reserved size="3">0</reserved>
+ <bitfield>pl</bitfield>
+ <bitfield>vm</bitfield>
+ <bitfield>pp</bitfield>
+ <bitfield>mc</bitfield>
+ <bitfield>us</bitfield>
+ <bitfield>ib</bitfield>
+ <bitfield>ic</bitfield>
+ <bitfield>ss</bitfield>
+ <bitfield>tb</bitfield>
+ <bitfield>lp</bitfield>
+ <bitfield>dd</bitfield>
+ <bitfield>id</bitfield>
+ <bitfield>pm</bitfield>
+</reg_row>
+</reg_table>
+
+<table>
+<caption>The <reg>psr</reg> fields</caption>
+<thead>
+<tr>
+ <th>Group</th>
+ <th>Field</th>
+ <th>Size</th>
+ <th>Description</th>
+</tr>
+</thead>
+<tbody>
+
+<tr><td>Miscellaneous</td>
+<td>pm</td><td>1</td>
+<td>
+<def>User performance monitor enabled</def>.
+If 1, the performance monitor is turned on and counts events, otherwise the performance monitor is disabled.</td>
+</tr>
+
+<tr><td>Predication</td><td>future</td><td>32</td>
+<td><p>The <def>future</def> field is used to control the nullification of the subsequent instructions.
+The nullification instruction may mark any of the subsequent 10 instructions as non-executing in this field.
+A value of 0 for a bit means that the instruction is executing, 1 - is not executing (nullified).
+</p>
+<p>The field is automatically shifted to the right when each instruction is executed, with zeros added for the new farthest instructions.
+In the case of the branch, the mask is completely cleared, thereby canceling all possible nullifications.
+</p>
+</td>
+</tr>
+
+<tr><td rowspan="5">Debugger</td>
+<td>id</td><td>1</td><td>
+<def>Instruction Debug Breakpoint fault</def>.
+If <regfield>psr.id</regfield>=1, breakpoints for instructions are enabled and may cause a <def>Instruction Debug</def> error.
+Otherwise, errors and traps on the address breakpoint are prohibited.</td>
+</tr>
+
+<tr><td>dd</td><td>1</td><td>
+<def>Data Debug Breakpoint fault</def>.
+If <regfield>psr.dd</regfield>=1, breakpoints for the data are enabled and may cause a <def>Data Debug</def> error.
+Otherwise, errors and traps on the address breakpoint are prohibited.</td>
+</tr>
+
+<tr><td>lp</td><td>1</td><td>
+<def>Lower Privilege transfer trap</def>.
+If 1, the <def>Lower Privilege Transfer</def> trap occurs when a transition occurs
+changes (decreases) the privilege level (the number <regfield>psr.cpl</regfield> increases to 1).</td>
+</tr>
+
+<tr><td>tb</td><td>1</td><td>
+<def>Taken branch trap</def>.
+If 1, then any branch that occurs causes the debug trap <def>Taken branch</def>.
+Interrupting and returning from it doesn't cause this trap.</td>
+</tr>
+
+<tr><td>ss</td><td>1</td><td>
+<def>Single Step Trap</def>.
+If 1, then the debug trap <def>Single Step</def> occurs after the successful execution of each instruction.</td>
+</tr>
+
+<tr><td rowspan="1">Privileges, restrictions</td>
+
+<td>cpl</td><td>1</td><td>
+<def>current privilege level</def>. The current privilege level of the executable thread.
+Controls the availability of system registers, instructions, and virtual memory pages.
+The value 0 is the kernel level, and the value 1 is the user level.
+Modified by the instructions <mim>syscall</mim>, <mim>sysret</mim>, <mim>rfi</mim>, <mim>trap</mim>.</td>
+</tr>
+
+<tr><td rowspan="6">Interrupts</td>
+<td>rs</td><td>2</td><td> <def>Restarting slot</def>.
+Stores the size of the executed part of the current instruction bundle.
+Used to partially restart the bundle after call, syscall, interruption.
+Slots before <regfield>ipsr.rs</regfield> are not executed (that is, instructions are skipped while <regfield>psr.rs</regfield> is less than that stored when <regfield>ipsr.rs</regfield> was interrupted).</td>
+</tr>
+
+<tr><td>ib</td><td>1</td><td><def>interruption Bit</def>.
+If 1, unmasked delayed external interrupts can interrupt the processor and transfer control to the external interrupt handler.
+If 0, pending external interrupts cannot interrupt the processor.</td>
+</tr>
+
+<tr><td>ic</td><td>1</td><td><def>interruption Collection</def>.
+If 1, then upon interruption, partial preservation of the context occurs
+(using the registers <reg>iip</reg>, <reg>iipa</reg>, <reg>ipsr</reg>, <reg>ifa</reg>, <reg>iib</reg>).</td>
+</tr>
+
+<tr><td>us</td><td>1</td><td><def>Used Shadow registers</def>.
+If 1, then during the interruption a partial preservation of the context occurred (shadow registers, <reg>iip</reg>, <reg>ipsr</reg>) are used.</td>
+</tr>
+
+<tr><td>mc</td><td>1</td><td><def>Machine Check</def>.
+If 1, then machine abortions are masked.</td>
+</tr>
+
+<tr><td>vm</td><td>1</td><td>
+<def>Virtual Machine</def>. If 1, attempting to execute some instructions results in a <error>Virtualization fault</error> error.
+If there is no virtualization implementation, this bit is not implemented and is reserved.
+The <regfield>psr.vm</regfield> bit is available only for the <mim>rfi</mim> and <mim>vmsw</mim> instructions.
+</td></tr>
+
+</tbody>
+</table>
+
+<p>Special registers <reg>bsp</reg> (<regname>bottom stack pointer</regname>) stores bottom limit for downward grown stack,
+which current position is stored in general register <reg>sp</reg>.
+The architecture assumes that all not-used stack pages will be premapped as guard pages and might be allocated in any order,
+it doesn't use pre-touching for allocated stack frames.
+The <reg>bsp</reg> should be page-aligned.
+</p>
+
+<p>Special registers <reg>peb</reg> (<regname>process env block</regname>) and <reg>teb</reg> (<regname>thread env block</regname>)
+store read-only user-mode addresses of the associated process and thread data blocks respectively.
+</p>
+
+<p>Special register <regname>interval time counter</regname> (<reg>itc</reg>) is an unsigned 64-bit number for measuring time intervals and synchronization in intervals of the order of nanoseconds.
+The increase in <reg>itc</reg> is based on a fixed ratio with the processor frequency.
+<reg>itc</reg> increases by one time in N cycles, where N is an integer defined by the implementation, the power of two is from 1 to 32.
+Applications can directly read <reg>itc</reg> for time-based computing and performance measurements.
+<reg>itc</reg> can only be written at the most privileged level.
+The OS must ensure that an interrupt from the system timer occurs before <reg>itc</reg> overflows.
+For <reg>itc</reg>, it is not architecturally guaranteed that any other processors in the multiprocessor system will be synchronized with the time interval counters, nor with the system clock.
+The software must calibrate <reg>itc</reg> with a valid calendar time and periodically adjust possible drift.
+</p>
+
+<p>Modifications of <reg>itc</reg> aren't necessarily synchronized with the instruction thread.
+Explicit synchronization may be required to ensure that modifications to <reg>itc</reg> are observed by the subsequent program instructions.
+The software should take into account the possible spread of errors when reading the interval timer due to various machine stops, such as interrupts, etc.
+</p>
+
+<p>Special <regname>interval timer match</regname> register (<reg>itm</reg>) is a 64-bit unsigned number which
+contains the future value of <reg>itc</reg> at which an <error>interval time match</error> interrupt will occur.
+</p>
+
+<p>Special register <reg>pta</reg> (<regname>page table address</regname>)
+controls the hardware <link href="#mem_page_table_walker">address translation</link>
+and stores root addresss for page table.
+</p>
+
+<p>Special registers <reg>iip</reg>, <reg>iipa</reg>, <reg>ipsr</reg>
+save part of the context (state) of the processor <link href="#int_state">upon interruption</link>.
+</p>
+
+<p>Special registers <reg>iva</reg>, <reg>cause</reg>, <reg>ifa</reg>, <reg>iib</reg>
+manage the interrupt table (<reg>iva</reg>), as well as <link href="#int_deliver">recognition and processing of interrupts</link>.
+</p>
+
+<p>Special registers
+<reg>lid</reg>,
+<reg>iv</reg>,
+<reg>tpr</reg>,
+<reg>irr0</reg> - <reg>irr3</reg>,
+<reg>isr0</reg> - <reg>isr3</reg>,
+<reg>itcv</reg>, <reg>tsv</reg>, <reg>pmv</reg>, <reg>cmcv</reg>
+are for the embedded programmable interrupt controller and manage <link href="#int_external">external</link> interrupts.
+</p>
+
+<p>Special registers <reg>ibr0</reg>-<reg>ibr3</reg>, <reg>dbr0</reg>-<reg>dbr3</reg>, <reg>mr</reg>-<reg>mr7</reg>,
+are for <link href="#debugging_and_monitoring">debugging and monitoring</link> facility.
+</p>
+
+</section>
+
+</chapter>
