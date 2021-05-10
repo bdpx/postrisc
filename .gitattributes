@@ -1,0 +1,84 @@
+=================================================
+# These settings are for any web project
+
+# Handle line endings automatically for files detected as text
+# and leave all files detected as binary untouched.
+* text=auto
+
+# Force the following filetypes to have unix eols, so Windows does not break them
+*.h    text eol=lf
+*.hpp  text eol=lf
+*.inc  text eol=lf
+*.s    text eol=lf
+*.c    text eol=lf
+*.cpp  text eol=lf
+*.sh   text eol=lf
+*.md   text eol=lf
+*.xml  text eol=lf
+*.txt  text eol=lf
+*.svg  text eol=lf
+*.html text eol=lf
+*.htm  text eol=lf
+*.css  text eol=lf
+*.js   text eol=lf
+*.ini  text eol=lf
+*.dtd  text eol=lf
+*.xsd  text eol=lf
+*.xsl  text eol=lf
+*.out  text eol=lf
+*.bash text eol=lf
+*.sh   text eol=lf
+*.yml  text eol=lf
+*.td   text eol=lf
+
+# Windows forced line-endings
+/.windows/* text eol=crlf
+
+#
+## These files are binary and should be left untouched
+#
+
+# (binary is a macro for -text -diff)
+*.bin binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.mov binary
+*.mp4 binary
+*.mp3 binary
+*.flv binary
+*.fla binary
+*.swf binary
+*.gz binary
+*.tgz binary
+*.zip binary
+*.7z binary
+*.ttf binary
+*.eot binary
+*.woff binary
+*.pyc binary
+*.pdf binary
+*.ez binary
+*.bz2 binary
+*.rar binary
+*.swp binary
+*.doc binary
+*.docx binary
+*.xls binary
+*.xlsx binary
+*.ppt binary
+*.pptx binary
+*.djvu binary
+*.chm binary
+
+#
+## GitHub Linguist overrides
+#
+
+*.hpp linguist-language=C++
+*.cpp linguist-language=C++
+*.xml linguist-language=XML
+*.xsl linguist-language=XSLT
+
