@@ -1,0 +1,482 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<chapter xmlns="http://www.example.com/postrisc" id="introduction">
+<title>Choosing an instruction set</title>
+
+<preface>
+<p>When creating instruction set for existing processor architectures in different years, their architects proceeded from various, often mutually exclusive, goals.
+Among these goals are the following:
+</p>
+<ul>
+<li>minimize program size;</li>
+<li>effective use of one or another hardware opportunity;</li>
+<li>compatibility within the family of machines with different performance;</li>
+<li>security of execution;</li>
+<li>built-in support of various constructions from high-level languages;</li>
+<li>optimized loading of pipeline functional units of the processor;</li>
+<li>minimize energy consumption;</li>
+<li>efficient solution to problems of a certain class;</li>
+<li>application for special purposes (embedded solutions);</li>
+<li>Maximum performance in single task mode;</li>
+<li>Maximum overall multitasking throughput.</li>
+</ul>
+<p>There are different architectures - the ones far gone in one certain direction, up to explicit conceptualism,
+and universal, seeking a balance of priorities in different directions.
+The choice made at the stage of designing the instruction set architecture may subsequently affect the possibility of developing the architecture in one direction or another.
+Errors in the design of architecture can cut off the possibility of effective implementation of architecture on new technologies
+due to incorrect prediction of the trend of technological innovation,
+narrow the scope of architecture, reduce the effectiveness of the application of architecture.
+</p>
+</preface>
+
+<section id="narrow">
+<title>Bottlenecks issue</title>
+
+<p>The traditional architecture of a programmable computing device is based on the principle of controlling the system by executing a program,
+which is a sequences of instructions stored in memory. The execution of the instruction consists of a sequence of steps:
+</p>
+
+<ul>
+<li>Fetch instructions;</li>
+<li>Decode instructions;</li>
+<li>Read processor state;</li>
+<li>Execute instruction;</li>
+<li>Update processor state and/or memory.</li>
+</ul>
+
+<p>Naturally, processor performance equals the performance of the bottleneck of this system.
+It doesn't make sense to increase the capabilities of one pipeline stage if problems at other stages are not resolved.
+Accordingly, several processor bottlenecks arise:
+</p>
+
+<ul>
+<li>RAM bandwidth;</li>
+<li>Cache Bandwidth;</li>
+<li>Width (power) of the instruction decoder;</li>
+<li>Number of read ports (register file throughput);</li>
+<li>Number and type of computing devices;</li>
+<li>Number of write ports (register file throughput).</li>
+</ul>
+
+<p>You can immediately say that the bandwidth of RAM is the fatal bottleneck of the processor,
+and this problem is only removed by increasing the amount of built-in cache.
+</p>
+
+</section>
+
+<section id="numa">
+<title>Memory non-uniformity problem</title>
+
+<p>At the heart of traditional architecture are two principles that relate to the central element of this <ndash/> memory architecture.
+This is the principle of random access to any memory element (uniformity property) and the principle of controlling the system by executing a program,
+which is a sequences of instructions stored in memory.
+</p>
+
+<p>However, early computers already got summary registers, and later the counter registers and indexes appeared, stored as close as possible to the calculator.
+The emergence of architectures with general-purpose registers meant the final division of memory into fast registers and slower RAM.
+The appearance of registers made it possible to explicitly track, analyze and plan dependencies according to data in the instruction stream,
+and, if there are no dependencies, execute the instructions at the same time.
+</p>
+
+<p>The further memory size increase, the computing devices miniaturization, an increased gap between the the memory and the processor speed gave rise to cache memory.
+Caching removed some of the problems with speed memory operations without changing the programming paradigm.
+However, more was needed.
+Cache levels of increasing size.
+Current computer circuit as follows: a set of specialized computing devices with its own register files relies on a system of logically uniform memory with implicit multi-layer caching.
+</p>
+
+<p>The architecture of a computer with 16 general-purpose registers is certainly better than the architecture with 8 registers.
+And architecture with two pipelines of multiplication-addition of floating-point numbers is better than with one pipeline.
+It might seem that an architecture with 1024 registers and 16 multiplication-addition pipelines would be almost ideal.
+However, a register file of 1024 registers with 16<times/>4=64 read/write ports would be a technological absurdity.
+Caching also reached its limit after the advent of four cache level.
+Further enhancement of parallel data processing capabilities is carried out by creating
+massively parallel systems with shared memory, which abandoned the property of uniformity of memory,
+leaving it only for the local memory of one multiprocessor node.
+But these issues already lie outside the processor architecture of the processor itself.
+</p>
+
+<p>The new architecture doesn't abolish the traditional architecture based on logically homogeneous memory and doesn't offer a new programming paradigm.
+The architecture is still based on logically homogeneous RAM.
+Architectural changes can only affect the model of a computing device with its state explicitly described by internal registers.
+</p>
+
+</section>
+
+<section id="parallel_technology">
+<title>The technologies of parallel operation execution</title>
+
+<p>In addition to the memory non-uniformity, there is another fundamental fact that determines the development of architectures <ndash/> parallelism of operations.
+Unlike traditional strictly consistent architecture, modern architectures to achieve maximum
+performance seek to execute more than one instruction at a time,
+and more than one operation in one instruction.
+</p>
+
+<p>The problem of parallel computing is ultimately reduced to the problem of organization
+consistent simultaneous access of many computing devices to logically homogeneous memory,
+that is, to the same problem of real memory non-uniformity and insufficient bandwidth.
+Accordingly, it is the level of parallel memory sharing that determines the parallelization technologies used.
+</p>
+
+<p>There are several technologies for increasing the degree of parallelism of calculations, depending on the hierarchical level of memory for which they are intended.
+These technologies are implemented either at the ISA level (instruction set architecture) or at the software level.
+Here we are more interested in the first case, since we want to evaluate the possibilities of parallel operations due to the correct choice of ISA.
+</p>
+
+<table>
+<caption>Technologies for achieving parallel computing</caption>
+<thead><tr>
+<th>Memory hierarchy level</th>
+<th>Data exchange</th>
+<th>Technology</th>
+<th>Hardware</th>
+<th>Acceleration</th>
+<th>New ISA</th>
+<th>Code density</th>
+<th>Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Separate register</td>
+<td>inside the pipeline</td>
+<td>SIMD: subword parallelism</td>
+<td>Wide registers and data buses</td>
+<td>4-16 operations in one instruction</td>
+<td>4-16</td>
+<td>8</td>
+<td>At ISA level, compiler</td>
+</tr><tr>
+<td>Pipeline data</td>
+<td>inside the pipeline</td>
+<td>Fused instructions</td>
+<td>Longer pipeline, additional read port</td>
+<td>2-3 operations in one instruction</td>
+<td>2-3</td>
+<td>1.25</td>
+<td>At ISA level, compiler</td>
+</tr><tr>
+<td>Separate register file</td>
+<td>Crossbar before register file</td>
+<td>OOOE+SS: out-of-order super-scalar execution</td>
+<td>Increase in the number of ports of the register file, associative hardware for instruction issuing</td>
+<td>2-10 instructions per cycle</td>
+<td>2 5</td>
+<td>0</td>
+<td>At ISA level, compiler</td>
+</tr><tr>
+<td>Many computing units with local register files</td>
+<td>inter-file transfer instructions</td>
+<td>MIMD+VLIW: very long instruction word</td>
+<td>Wide fetching of instructions, scheduling</td>
+<td>2-8 instructions per cycle</td>
+<td>0</td>
+<td>0.25</td>
+<td>At ISA level, compiler</td>
+</tr><tr>
+<td>Cache</td>
+<td>Explicit sync memory access instructions</td>
+<td>SMT/CMP: simultaneous multi-threading, chip multi-processing</td>
+<td>Multiport cache, next instruction fetch</td>
+<td>2-4 microkernels (threads) on one chip</td>
+<td>4</td>
+<td>0</td>
+<td>At the program level</td>
+</tr><tr>
+<td>Local shared RAM</td>
+<td>Explicit Sync Memory Access Instructions</td>
+<td>SMP: shared memory processing</td>
+<td>Memory banks, wide crossbar</td>
+<td>2-64 microchips in one node</td>
+<td>64</td>
+<td>0</td>
+<td>At the program level</td>
+</tr><tr>
+<td>Computing network</td>
+<td>Library network transfer functions</td>
+<td>MPP: massively parallel processing</td>
+<td>Developed network topology (hypercube, torus, mesh, fat tree)</td>
+<td>any number of nodes in the array</td>
+<td>4096</td>
+<td>0</td>
+<td>At the program level</td>
+</tr>
+</tbody>
+</table>
+
+<p>The commercially successful ISA implementation is a compromise between the implementation complexity and each technology benefits.
+Successful ISA implementation doesn't give preference to any one technology (isn't pure conceptual),
+but organically and in moderate doses combines several technologies.
+</p>
+
+<p><def>SIMD</def> (<em>Single Instruction Multiple Data</em>) are instructions for homogeneous vector operations on elements (8,16,32,64 bits long) of a wide register (64 or 128 bits long).
+They allow to perform several (2-16) operations in one instruction per cycle.
+However, software handling of exceptional situations is complicated (where is the error in the vector operation?).
+The program should contain a sufficient proportion of operations that allow vector execution,
+and the optimizing compiler must be able to find such operations.
+When accessing the memory there are problems with data alignment.
+Implementation of wide ports for reading and writing registers.
+</p>
+
+<p><def>Fused instructions</def> are three-operand instructions that combine two binary operations.
+For example: <formula>a = b <times/> c + d</formula>.
+This reduces the total number of instructions and doubles (ideally) the number of computational operations performed per clock cycle (but not machine instructions).
+This requires a longer execution pipeline, and hence the increase in delays during branches. We need an additional read port for the third operand.
+The construction of an exception handler is becoming more complicated, since collisions are possible in both the first and second of the fused operations.
+It takes a place in the instruction to encode the fourth operand.
+There is a discrepancy in the formats of the computational instructions: binary and ternary formats, which complicates decoding,
+or you have to artificially convert all binary formats into ternary instructions.
+The program must contain operations that allow fusing, and the optimizing compiler must be able to find such operations.
+The percentage of fused operations should be large enough.
+The total number of possible fused instructions <formula>O(N<sup>2</sup>)</formula>, where N is the number of basic operations, which is quite large.
+In practice, it is impossible to fuse all instructions, since the amount of decoding equipment and the place in the instruction allocated for the operation code are limited.
+Therefore, only some frequently occurring combinations of operations fuse.
+</p>
+
+<p><def>Predication</def> is conditional execution of instructions.
+Any instruction turns into a hardware-executed conditional branch statement.
+For example: if (a) b = c + d.
+An additional operand encodes the logical condition register.
+This technology replaces a control dependency with a data dependency and shifts a possible pipeline shutdown closer to the pipeline end.
+Most poorly predicted branches in short conditional calculations, and hence pipeline stops,
+It is eliminated due to the simultaneous execution of instructions from different branches of the conditional statement.
+However, this is a purely power method, which boils down to simultaneously issuing instructions from several execution branches under different predicates on the pipeline.
+It takes a place in the instruction to encode the extra operand <ndash/> predicate register.
+</p>
+
+<p><def>Superscalar</def> (<em>super-scalar</em>) execution of instructions.
+Advantages: Execution of several (1-4) instructions per cycle.
+Disadvantages: Exception handling becomes more complicated, since the completion of instructions is required strictly in program order.
+Associative hardware of complexity <formula>O(N<sup>2</sup>)</formula> is required
+to analyze and select <em>N</em> simultaneously executed instructions.
+We need additional read and write ports, additional pipeline stages.
+</p>
+
+<p><def>Out-of-order execution</def> or <def>OOOE</def> is the execution of instructions is not in the manner prescribed by the program,
+and as the operands are ready, which allows you to bypass structural dependencies according to
+and do some useful things while waiting for the completion of previous instructions, such as reading from memory.
+However, the handling of exceptions is complicated, since the completion of instructions is required strictly in software order.
+Associative hardware of complexity <formula>O(N<sup>2</sup>)</formula> is required
+to analyze and select the next instruction from <em>N</em> buffered instructions.
+Additional pipeline stages are needed.
+A register file of sufficient size and equipment for dynamic renaming of registers are required.
+</p>
+
+<p><def>VLIW</def> (<em>Very Long Instruction Word</em>) or <def>MIMD</def> (<em>Multiple Instruction Multiple Data</em>) is the execution of instruction packages.
+Advantages: Execution of several (1-4) instructions per cycle.
+Disadvantages: Need synchronization <ndash/> accurate knowledge of delay times for all pipelines and memory,
+and hence program intolerance when changing the processor model and incompatibility with data caching.
+Need additional read and write ports.
+The program must contain operations that allow synchronous execution, and the compiler must be able to find such operations.
+The increase in the size of the program due to empty slots for which no useful instructions were found.
+</p>
+
+</section>
+
+<section id="ifmt_budget">
+<title>Instruction format budget</title>
+
+<p>The program size should be as small as possible.
+The requirement of code density requires efficient usage of space in the instructions.
+The question arises about the most advantageous distribution of the bit budget between different types of information in the instruction.
+The following table shows what the instruction bit budget can be spent on:
+</p>
+
+<table>
+<caption>Allocation of the instruction bits</caption>
+<thead><tr>
+<th>Type of information</th>
+<th>Advantages</th>
+<th>Disadvantages</th>
+</tr></thead><tbody>
+<tr>
+<td>Operation code</td>
+<td>increasing the variety of implemented functions reduces the data path (the number of instructions for the operation)</td>
+<td>Complicating functional units and the compiler</td>
+</tr><tr>
+<td>Wider register numbers</td>
+<td>more registers in a uniform register file facilitates variable allocation and data flow organization</td>
+<td>It is statistically useless when procedures with a small number of variables prevail, it increases the length of data buses and the number of intersections.</td>
+</tr><tr>
+<td>Additional operand registers</td>
+<td>Non-destructive 3-ary instructions and complex fused 4-ary operations reduce the number of data moves, shorten the data path</td>
+<td>Problems with additional register reading ports and register renaming ports (for OOOE)</td>
+</tr><tr>
+<td>Explicit predicate description</td>
+<td>conditional execution of short conditional statements without branches reduces the branch-delay of incorrect dynamic predictions</td>
+<td>Favorable only for short conditional statements that do not exceed the pipeline length.</td>
+</tr><tr>
+<td>Longer constants in the instruction code</td>
+<td>loading constants becomes easier, less often special instruction sequences are required for synthesizing long constants</td>
+<td>Statistically useless when short constants prevail</td>
+</tr><tr>
+<td>Templates for an early description of the instruction distribution to functional units</td>
+<td>facilitating decoding and distribution of instructions among functional units</td>
+<td>Problems with porting programs to machines with a different set of functional units</td>
+</tr><tr>
+<td>Explicit description of instructions that allow parallel execution</td>
+<td>Simplifice the instructions sheduling to functional units</td>
+<td>Useless with unpredictable execution times</td>
+</tr><tr>
+<td>Hints to the processor about the direction and frequency of branches</td>
+<td>Reduced downtime due to incorrect dynamic predictions</td>
+<td>Useless if the compiler doesn't have the necessary information, harmful if the prediction is incorrect.
+May conflict with hardware branch predictor.</td>
+</tr><tr>
+<td>Hints to the processor about the frequency and nature of future accesses to the cache line</td>
+<td>Reduced cache misses, better cache utilization</td>
+<td>Useless if the compiler doesn't have the necessary information or does incorrect predictions,
+harmful for different predictions of access patterns to the same line.
+May conflict with microarchitectural hardware prefetcher.</td>
+</tr><tr>
+<td>Explicit clustering of register files with binding to functional units</td>
+<td>The data bus length and the number of intersections are reduced, power consumption is reduced,
+Reduced space for register numbers in instructions</td>
+<td>Requires explicit data transfer between register files in different clusters by separate instructions, which lengthens the data path.
+It doesn't allow reducing or increasing the number of clusters specified by the architecture.
+It doesn't allow redistributing functional units.</td>
+</tr>
+</tbody></table>
+
+<p>A successful ISA implementation is a trade-off between the cost of instruction space and the benefits of using coding techniques.
+Preference should not be given to any one technique. The instruction set architecture combines different coding techniques at the ISA level.
+</p>
+
+<p>In a broader sense, there is a question about splitting the workflow into separate instructions.
+The same sequence of operations can be represented in different ways as a sequence of instructions.
+The complication of the semantics of instructions makes it possible to increase their length and reduce the number without compromising the overall size of the program,
+and this, in turn, raises the question of a new redistribution of the bit budget.
+</p>
+
+<p>However, for high-performance architectures, it's more important not even the size of the code at all, but the efficiency of using the cache for instructions.
+The cache line contains several instructions and begins with a naturally aligned address.
+The most effective option is to fetch all the instructions in one cache line starting from the first instruction.
+Fetches from not the line start require aligners and introduce delays, incomplete fetches use the cache not rationally.
+</p>
+
+<p>Summarizing the above, we can say that a regular format of instructions is needed,
+which would shorten the data path without significantly complicating semantics and hardware
+support for each instruction would be dense enough, but when choosing between code density
+and caching efficiency would give preference to caching.
+The format of the instructions should give the scalability of parallel computing devices within a single portable architecture.
+</p>
+
+<p>It should be noted that the growth in the volume of processed information is significantly ahead of the growth in the program complexity.
+The relative part of the RAM occupied by the program code is constantly decreasing.
+Therefore, the problem of minimizing the size of the program is gradually relegated to the background, remaining relevant only for embedded systems.
+</p>
+
+<p>Pipeline parallel organization of a computing device requires a <def>regular</def> instruction format,
+that is, the constancy of the length of the portion supplied to the input of the pipeline decoder instructions.
+This is necessary in order to start decoding the next portion before decoding of instructions from the previous portion is completed.
+</p>
+
+<p>The regularity of the instruction format means the finiteness of all instructions, the limitation of their length to the length of the decoded portion.
+However, not all instruction lengths are available for implementation.
+It should also be possible to determine the start of the next instruction before decoding the current instruction.
+The instructions must satisfy the conditions for the natural alignment of data in memory,
+which are constantly growing as memory systems evolve.
+</p>
+
+<table>
+<caption>Possible regular instruction formats</caption>
+<thead><tr>
+<th>Format</th>
+<th>Instruction lengths</th>
+<th>Alignment</th>
+<th>Example</th>
+</tr></thead><tbody>
+<tr><td>Irregular</td><td>1-15</td><td>1</td><td>Intel X86</td></tr>
+<tr><td>Irregular</td><td>2,4,6,8</td><td>2</td><td>Motorola 68000, IBM S390</td></tr>
+<tr><td>Semi-regular</td><td>2,4</td><td>2</td><td>MIPS-16</td></tr>
+<tr><td>4-byte regular</td><td>4</td><td>4</td><td>Alpha, PowerPC, PA-RISC, Sparc, MIPS</td></tr>
+<tr><td>8-byte bundles</td><td>4,8</td><td>8</td><td>Intel 80960</td></tr>
+<tr><td>8 byte instructions</td><td>8</td><td>8</td><td>Fujitsu VPP</td></tr>
+<tr><td>16-byte bundles</td><td>5,10</td><td>16</td><td>IA-64</td></tr>
+</tbody></table>
+
+<p>The first three rows of the table relate either to the legacy instruction architectures,
+or to special architectures for embedded applications for which the program size flashed directly into the ROM is more important than performance.
+</p>
+
+<p>A regular 4-byte format is used by all modern RISC architectures.
+Now they are completing the cycle of their development, reaching the limits of improving this format.
+It is hardly worth hoping for significant progress based on new architectures based on this format.
+</p>
+
+<p>The format of 8-byte instructions is used only on some vector and graphics processors,
+where there is generally no possibility of access to smaller memory atoms.
+Its application for general-purpose architecture would mean more than double the size of programs, which is unacceptable.
+</p>
+
+<table>
+<caption>Comparison of some architectures</caption>
+<thead><tr>
+<th>Number of registers</th>
+<th>Architecture</th>
+<th>Advantages</th>
+<th>Disadvantages</th>
+</tr></thead><tbody>
+<tr><cellc>8</cellc><td>Intel X86</td>
+<td>scaled indexed addressing mode, SSE2 double precision vector instructions <type>double</type></td>
+<td>CISC: only 8 non-universal and non-orthogonal registers, lack of uniformity in coding</td>
+</tr>
+<tr><cellc>16</cellc><td>AMD X86-64</td>
+<td>PC-relative addressing</td>
+<td>compatible with old X86, only 16 registers</td>
+</tr>
+<tr><cellc>16</cellc><td>ARM32</td>
+<td>Predication, fused instructions</td>
+<td>Combination of the instruction counter with the general register</td>
+</tr>
+<tr><cellc>32</cellc><td>ARM64</td>
+<td>fused instructions</td>
+<td>usually 2 instructions to adress global/static data (hi/lo parts of address)</td>
+</tr>
+<tr><cellc>32</cellc><td>SGI MIPS</td>
+<td>First RISC: Fixed Instruction Format, PC-relative addressing (MIPS16)</td>
+<td>delayed branches</td>
+</tr>
+<tr><cellc>32</cellc><td>Intel 80960</td>
+<td>Regular but not fixed format with 4 and 8 bytes instructions</td>
+<td></td>
+</tr>
+<tr><cellc>32</cellc><td>HP PA-RISC</td>
+<td>instruction nullification, speculative execution, system calls without interruptions, global virtual address space,
+inverted page hash tables</td>
+<td>delayed branches, comparison in each instruction</td>
+</tr>
+<tr><cellc>32</cellc><td>DEC Alpha</td>
+<td>out-of-order execution of instructions, a fixed format for instructions, a unified PAL code, the absence of global dependencies outside the registers</td>
+<td>insufficient memory access formats, poor code density, lack of good SIMD extensions, inaccurate interrupts</td>
+</tr>
+<tr><cellc>32</cellc><td>IBM PowerPC</td>
+<td>out-of-order execution of instructions with the ordered completion and exact interruptions, fused instructions <quote>multiply-add</quote>,
+multiplicity of the condition register, saving or restoring several registers with one instruction,
+global virtual address space, inverted cluster page tables</td>
+<td>optional comparison in each computational instruction, dependencies between global flag instructions, inconvenient ABI.</td>
+</tr>
+<tr><cellc>32</cellc><td>IBM/Motorola PowerPC</td>
+<td>AltiVec Vector Extension</td>
+<td>missing double-precision vector instructions (as in SSE2)</td></tr>
+<tr><cellc>32</cellc><td>Sun UltraSPARC</td><td>Recursive interrupts, register rotation</td>
+<td>register windows of a fixed size, large register files but a small number of registers</td>
+</tr>
+<tr><cellc>128</cellc><td>Intel IA-64</td>
+<td>Predication, register rotation, instruction bundles</td>
+<td>only next execution of instructions, large multi-port register files, sparse code, complex compiler</td>
+</tr>
+<tr><cellc>128</cellc><td>IBM Cell</td>
+<td>Unified register file for all types</td>
+<td>Explicit non-uniform scratchpad memory without cache, explicit DMA for exchange with main memory</td>
+</tr>
+<tr><cellc>256</cellc><td>Fujitsu SPARC64 IX-FX</td>
+<td>Vector instructions for paired registers.</td>
+<td>Separate preparation instructions for specifying numbers from an extended set of registers</td>
+</tr>
+</tbody>
+</table>
+
+</section>
+</chapter>

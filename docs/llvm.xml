@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<chapter xmlns="http://www.example.com/postrisc" id="llvm">
+<title>LLVM backend</title>
+
+<preface>
+
+<p>Development of the <archname/> backend for the LLVM compiler:
+<link href="https://github.com/bdpx/llvm-project">github.com/bdpx/llvm-project</link>.
+</p>
+
+</preface>
+
+<section id="llvm_intro">
+<title>LLVM backend intro</title>
+
+<p>How to build/use.</p>
+
+<table>
+<caption><archname/>-specifiec LLC options</caption>
+<thead><tr>
+<th>Option</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>--postrisc-enable-block-merging</td><td>1</td><td>Enable fallthrough blocks merging.</td></tr>
+<tr><td>--postrisc-enable-dense-calls</td><td>1</td><td>Enable calls inside bundle.</td></tr>
+<tr><td>--postrisc-enable-move-merging</td><td>1</td><td>Enable mov2 merging.</td></tr>
+<tr><td>--postrisc-enable-nullification</td><td>0</td><td>Enable nullification instructions.</td></tr>
+<tr><td>--postrisc-enable-pre-post-update</td><td>0</td><td>Enable Pre/Post update instructions.</td></tr>
+<tr><td>--postrisc-max-nullification-blocksize</td><td>8</td><td>Maximum nullification block size.</td></tr>
+</tbody>
+</table>
+
+</section>
+
+<section id="llvm_limitations">
+<title>LLVM backend limitations</title>
+
+<p>Nullification - it works!</p>
+
+<p>Pre/post update addressing is not worked.</p>
+
+<p>Loop instructions aren't used in compiler.</p>
+
+<p>Currently, only static PIE executables are supported by compiler and emulator.</p>
+
+</section>
+
+<section id="llvm_musl_port">
+<title>MUSL port</title>
+
+<p><archname/> port for MUSL: <link href="https://github.com/bdpx/musl">github.com/bdpx/musl</link>.
+</p>
+<p>MUSL limitations: doesn't support f128.</p>
+<p><archname/> limitations: currently, buildable only as a static lib.</p>
+
+</section>
+
+<section id="llvm_code_density">
+<title>Code density comparison</title>
+
+<p>Here are <link href="https://www.reddit.com/r/hardware/comments/jxsiee/comment/gd23zbm/">results</link> for
+SQLite 3.33.0 compiled with Clang 10.0.1 on FreeBSD 12.1 with -Os for various architectures:
+</p>
+
+<code>
+   text    data     bss     dec     hex filename
+ 649095    4576     964  654635   9fd2b sqlite3.a32.o
+ 588115    8280    1304  597699   91ec3 sqlite3.a64.o
+ 641257    8320    1312  650889   9ee89 sqlite3.amd64.o
+ 584276    4576     952  589804   8ffec sqlite3.i686.o
+ 795319   16688    1304  813311   c68ff sqlite3.mips64el.o
+ 725083    4576     960  730619   b25fb sqlite3.mipsel.o
+ 691715    9148     960  701823   ab57f sqlite3.ppc.o
+ 712559   49144    1304  763007   ba47f sqlite3.ppc64.o
+ 689035    4960     959  694954   a9aaa sqlite3.rv32g.o
+ 509583    4960     959  515502   7ddae sqlite3.rv32gc.o
+ 689035    4960     959  694954   a9aaa sqlite3.rv64g.o
+ 512500    8668    1299  522467   7f8e3 sqlite3.rv64gc.o
+ 917929    8280    1304  927513   e2719 sqlite3.s390x.o
+ 445205    4576     964  450745   6e0b9 sqlite3.t32.o
+</code>
+
+<p>where a32 is ARMv7-A in ARM mode, t32 is the same in thumb mode and a64 is ARMv8-A.
+The rest are self explanatory.
+The clear winner is ARM Thumb, but RISC-V does well indeed (with compressed instructions, without it's rather meh) It's the most space efficient 64 bit ISA for sure.
+i686 does a little worse (still the third most compact after RV32gc and T32) and the classic RISC instruction sets are just terrible.
+The clear loser is Z/Architecture (S390x).
+</p>
+
+<p>The SQLite 3.33.0
+<link href="https://chromium.googlesource.com/chromium/deps/sqlite/+/refs/heads/chromium-version-3.33.0/amalgamation_dev/">sqlite-chromium-version-3.33.0</link>,
+(probably same sources), compiled with Clang-24.0git on Linux.
+The results for <archname/> are without (not implemented yet in the compiler) using the base pre-update addressing mode and the loop instructions, which may improve code density a bit.
+Auto-vectorization is completely disabled for all architectures because doesn't supported for <archname/> yet.
+</p>
+
+<code>-fno-slp-vectorize
+-fno-vectorize
+-fno-tree-vectorize
+</code>
+
+<p>The Oz optimization: maximal code compression</p>
+
+<code>
+   text    data     bss     dec     hex filename
+ 407555   14856    1670  424081   67891 sqlite3.riscv64gc.Oz.o
+ 416755    9080    1206  427041   68421 sqlite3.riscv32gc.Oz.o
+ 540643   14856    1670  557169   88071 sqlite3.riscv64g.Oz.o
+ 547582    9072    1191  557845   88315 sqlite3.i686.Oz.o
+ 550001   16544    1670  568215   8ab97 sqlite3.arm64.Oz.o
+ 555705    9080    1206  565991   8a2e7 sqlite3.riscv32g.Oz.o
+ 558565    9080    1208  568853   8ae15 sqlite3.arm32.Oz.o
+ 561762   14968    1691  578421   8d375 sqlite3.amd64.Oz.o
+ 574285    9080    1203  584568   8eb78 sqlite3.loongarch32.Oz.o
+ 575489    9080    1208  585777   8f031 sqlite3.thumb32.Oz.o
+ 581517   16544    1683  599744   926c0 sqlite3.loongarch64.Oz.o
+ 584267   14832    1683  600782   92ace sqlite3.sparc64.Oz.o
+ 585085   14856    1683  601624   92e18 sqlite3.postrisc-dense-null.Oz.o
+ 597709   14856    1683  614248   95f68 sqlite3.postrisc-dense.Oz.o
+ 605633   14856    1683  622172   97e5c sqlite3.s390x64.Oz.o
+ 611553    9052    1203  621808   97cf0 sqlite3.sparc32.Oz.o
+ 637773   14856    1683  654312   9fbe8 sqlite3.postrisc-aligned-null.Oz.o
+ 638343   92154    1670  732167   b2c07 sqlite3.powerpc64.Oz.o
+ 642286   37312    1206  680804   a6364 sqlite3.powerpc32.Oz.o
+ 647069   14856    1683  663608   a2038 sqlite3.postrisc-aligned.Oz.o
+ 689025   14856    1683  705564   ac41c sqlite3.mips64r6.Oz.o
+ 729977   14856    1683  746516   b6414 sqlite3.mips64.Oz.o
+ 735933    9080    1203  746216   b62e8 sqlite3.mips32.Oz.o
+</code>
+
+<p>The Os optimization</p>
+
+<code>
+   text    data     bss     dec     hex filename
+ 472868   14888    1670  489426   777d2 sqlite3.riscv64gc.Os.o
+ 484646    9080    1206  494932   78d54 sqlite3.riscv32gc.Os.o
+ 610699    9072    1191  620962   979a2 sqlite3.i686.Os.o
+ 626808   15000    1691  643499   9d1ab sqlite3.amd64.Os.o
+ 639138    9080    1203  649421   9e8cd sqlite3.arm32.Os.o
+ 643898   16544    1683  662125   a1a6d sqlite3.arm64.Os.o
+ 645190   16544    1683  663417   a1f79 sqlite3.loongarch64.Os.o
+ 646626    9080    1203  656909   a060d sqlite3.loongarch32.Os.o
+ 654578    9080    1203  664861   a251d sqlite3.thumb32.Os.o
+ 655302   14888    1670  671860   a4074 sqlite3.riscv64g.Os.o
+ 668475   14888    1683  685046   a73f6 sqlite3.postrisc-dense-null.Os.o
+ 671259   14888    1683  687830   a7ed6 sqlite3.s390x64.Os.o
+ 672976    9080    1206  683262   a6cfe sqlite3.riscv32g.Os.o
+ 679258   14832    1683  695773   a9ddd sqlite3.sparc64.Os.o
+ 685515   14888    1683  702086   ab686 sqlite3.postrisc-dense.Os.o
+ 709363   88890    1670  799923   c34b3 sqlite3.powerpc64.Os.o
+ 710726    9052    1203  720981   b0055 sqlite3.sparc32.Os.o
+ 715078   37312    1206  753596   b7fbc sqlite3.powerpc32.Os.o
+ 720011   14888    1683  736582   b3d46 sqlite3.postrisc-aligned-null.Os.o
+ 732491   14888    1683  749062   b6e06 sqlite3.postrisc-aligned.Os.o
+ 752466   14888    1683  769037   bbc0d sqlite3.mips64r6.Os.o
+ 801338   14888    1683  817909   c7af5 sqlite3.mips64.Os.o
+ 808302    9080    1203  818585   c7d99 sqlite3.mips32.Os.o
+</code>
+
+<p>The O2 optimization</p>
+
+<code>
+   text    data     bss     dec     hex filename
+ 643449   16312    1670  661431   a17b7 sqlite3.riscv64gc.O2.o
+ 657293    9040    1206  667539   a2f93 sqlite3.riscv32gc.O2.o
+ 842739   16464    1683  860886   d22d6 sqlite3.arm64.O2.o
+ 846727    9004    1199  856930   d1362 sqlite3.i686.O2.o
+ 874443   16312    1670  892425   d9e09 sqlite3.riscv64g.O2.o
+ 876311   16424    1691  894426   da5da sqlite3.amd64.O2.o
+ 878971    9040    1203  889214   d917e sqlite3.arm32.O2.o
+ 896919    9040    1206  907165   dd79d sqlite3.riscv32g.O2.o
+ 899743    9040    1203  909986   de2a2 sqlite3.loongarch32.O2.o
+ 903399   16464    1683  921546   e0fca sqlite3.loongarch64.O2.o
+ 908523    9040    1203  918766   e04ee sqlite3.thumb32.O2.o
+ 939445   16256    1683  957384   e9bc8 sqlite3.sparc64.O2.o
+ 942802   37244    1206  981252   ef904 sqlite3.powerpc32.O2.o
+ 943373   16312    1683  961368   eab58 sqlite3.postrisc-dense-null.O2.o
+ 956279   85634    1670 1043583   fec7f sqlite3.powerpc64.O2.o
+ 964477   16312    1683  982472   efdc8 sqlite3.postrisc-dense.O2.o
+ 986987    9012    1203  997202   f3752 sqlite3.sparc32.O2.o
+ 993189   16312    1683 1011184   f6df0 sqlite3.mips64r6.O2.o
+ 999293   16312    1683 1017288   f85c8 sqlite3.postrisc-aligned-null.O2.o
+1015933   16312    1683 1033928   fc6c8 sqlite3.postrisc-aligned.O2.o
+1064545   16312    1683 1082540  1084ac sqlite3.s390x64.O2.o
+1068465   16312    1683 1086460  1093fc sqlite3.mips64.O2.o
+1072887    9040    1203 1083130  1086fa sqlite3.mips32.O2.o
+</code>
+
+<p>The main factor for code density is the possibility of returning inside the middle of an instruction bundle (dense vs aligned) and the using of nullification (null).
+In common, code density for <archname/> is more or less similar to MIPS, PowerPC, Sparc, LoongArch, S390, and RISC-V (without compression) or only slightly worse.
+This is surprising taking into account 128 registers, bundles, nops, etc.
+The clear loser is MIPS.
+</p>
+
+</section>
+
+<section id="llvm_doom_port">
+<title>DOOM port</title>
+
+<p><archname/> port for Doom-1: <link href="https://github.com/bdpx/postrisc_doom">github.com/bdpx/postrisc_doom</link>.
+Uses the MUSL standard library (as a static lib).
+Doom generic interface is implemented as additional system calls.
+</p>
+
+<p>The emulator log <link href="doom-log.html">doom-log.html</link> with static/dynamic instruction statistic for Doom Shareware demo scene autoplay.
+First 3 demoscenes (around), limit - 10 billion instructions.
+Time: 173.630 seconds.
+Frames: 11873.
+Iinstructions per frame: 842247 (up to 8-bit indexed image not counting emulator scaling/mapping).
+Instructions per pixel: 13.160.
+Frames per second: 68.683.
+</p>
+
+</section>
+
+</chapter>
