@@ -1,0 +1,1205 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<chapter xmlns="http://www.example.com/postrisc" id="physical_memory">
+<title>Physical memory</title>
+
+<preface>
+<p>From the most applications point of view, memory is defined as a linear array of bytes,
+indexed from 0 to <formula>2<sup>64</sup><minus/>1</formula>.
+Each byte is identified by its index or address, and each byte contains a value.
+This information is sufficient for programming applications that do not require
+special features in any system environment.
+Other objects are constructed as sequences of bytes.
+</p>
+
+<p>The architecture supports composite types of size 1,2,4,8,16 bytes.
+It is considered that the word size is 4 bytes.
+The following is the terminology used in this guide for composite data types:
+<def>byte</def> is a 8 contiguous bits starting at an arbitrarily addressable byte boundary.
+<def>halfword</def> is a 2 contiguous bytes starting on an arbitrary (usually multiple of two) byte boundary.
+<def>word</def> is a 4 contiguous bytes starting on an arbitrary (usually multiple of four) byte boundary.
+<def>doubleword</def> is a 8 contiguous bytes starting on an arbitrary (usually multiple of eight) byte boundary.
+<def>quadword</def> is a 16 contiguous bytes starting on an arbitrary (usually multiple of 16) byte boundary.</p>
+
+<p>The bits inside each type are numbered from right to left from 0 to maximum.</p>
+
+<p>This chapter additionally defines physical addressing, physical memory map, physical memory properties, memory ordering.
+</p>
+
+<p>An extension of simple memory model include:
+virtual memory, cache, memory mapped IO,
+multiprocessor systems with shared memory, and, together with services,
+provided by the operating system, describes the mechanism
+which allows explicit management of this extended memory model.
+</p>
+
+<p>A simple sequential execution model allows at most one memory access at a time and requires
+so that all memory accesses seemed to be executed in program order.
+Unlike this simple model, a relaxed memory model is further defined.
+In multiprocessor systems that allow multiple locations of data copies,
+aggressive architecture implementations can allow time intervals during which different copies have different meanings.
+</p>
+
+<p>The program accesses the memory using the effective address calculated by the processor,
+when it performs a download, write, jump, or cache management instruction, and when it selects the next sequential instruction.
+The effective address is converted to a physical address according to the translation procedures.
+The physical address is used by the memory subsystem to execute memory access.
+The memory model provides the following features:
+</p>
+
+<p>Architecture allows memory to take advantage of benefits
+efficiency from poor sequencing of memory access between processors or between processors and external devices.
+</p>
+
+<p>Memory accesses by a single processor seem to be completed sequentially from the point of view of the programming model,
+but this may not end in order with respect to the final position in the memory hierarchy.
+Order is guaranteed at every level of the memory hierarchy just to access the same address from the same processor.
+</p>
+
+<p>The architecture must provide instructions to allow the programmer to guarantee
+consistent and ordered state of memory.
+</p>
+
+<p>The following defines the resources of the operating system for translating virtual addresses to physical addresses, physical addressing,
+memory sequencing and physical memory properties, status registers to support virtual memory management, virtual memory errors.
+</p>
+
+</preface>
+
+<section id="mem_physical_addressing">
+<title>Physical addressing</title>
+
+<p>The blocks of RAM, ROM, flash, memory mapped IO and other control blocks occupy a common 64-bit physical address space with byte addressing.
+Accesses to RAM and the IO address ranges can be performed either through virtual addressing,
+by mapping to a 64-bit physical address space, or directly through physical addressing.
+</p>
+
+<p>While software should always consider physical addressing as 64-bit,
+in fact, only <def>PALEN</def> less than 64 bits of the physical address can be implemented in hardware.
+As shown below, the physical address consists of two parts: unimplemented and implemented bits.
+At least 40 bits of physical addressing must be implemented.
+</p>
+
+<p>The system software can determine the specific value of PALEN by reading the PALEN field of the configuration word with the <mim>cpuid</mim> instruction.
+</p>
+
+<p>Not all of these available addresses have real devices under them.
+The hardware at startup maps the available address blocks to the physical memory ranges and notifies the system about mapping.
+Similarly, the control ranges of the registers of external devices are mapped to physical addresses.
+Most physical addresses usually remain unused.
+</p>
+
+<reg_table>
+<caption>64-bit physical address</caption>
+<bits64/>
+<reg_row>
+    <reserved size="16">reserved</reserved>
+    <imm size="48">implemented physical address bits</imm>
+</reg_row>
+</reg_table>
+
+<p>When the processor model doesn't implement all the bits of the physical address, the missing bits must be zero.
+If the software generates physical addresses with non-zero unimplemented bits, a runtime error occurs.
+Accessing instructions for unimplemented physical addresses results in the error <error>unimplemented instruction address</error>.
+Accessing data by unimplemented physical addresses results in the error <error>unimplemented data address</error>.
+Any accesses to the implemented but unused addresses end with an asynchronous <error>machine check abort</error> when the platform reports an operation timeout.
+The exact machine behavior of the check is implementation-dependent.
+</p>
+
+</section>
+
+<section id="mem_alignment">
+<title>Data alignment and atomicity</title>
+
+<p>Memory accesses give a significant performance hit when accessing operands, which are not <em>aligned</em> at the natural address boundary.
+A naturally-aligned 2-byte number in memory has a zero bit in the low order of the address.
+A naturally-aligned 4-byte number in memory has two zero bits in the least significant bits of the address.
+A naturally-aligned 8-byte number in memory has three zero bits in the least significant bits of the address.
+A 16-byte number, naturally aligned in memory, has four zero bits in the least significant bits of the address.
+In general, a naturally aligned object of size <formula>2<sup>N</sup></formula> bytes has N zero bits in the least significant bits of the address.
+</p>
+
+<p>Struct data types must provide natural alignment for all of their fields by inserting (<em>paddings</em>).
+Additionally, it should be possible to use the structs as elements of an array,
+by using the final padding with the strictest alignment among all struct fields.
+</p>
+
+<p>Using the example of the following <var>S</var> C language structure,
+containing a set of various scalars and a character string, the location of the fields in memory is shown.
+</p>
+
+<code>
+struct {
+   int       a;    /* usual 4 bytes */
+   double    b;    /* usual 8 bytes */
+   int       c;    /* usual 4 bytes */
+   char      d[7];
+   short     e;    /* usual 2 bytes */
+   int       f;
+} S;
+</code>
+
+<p>C language rules for mapping structures allow the use of paddings (byte skipping)
+to align scalars in memory on natural boundaries.
+</p>
+
+<table width="85%">
+<caption>Aligned representation of the structure in memory</caption>
+<tr>
+<td class="bit">0</td>
+<td class="bit">1</td>
+<td class="bit">2</td>
+<td class="bit">3</td>
+<td class="bit">4</td>
+<td class="bit">5</td>
+<td class="bit">6</td>
+<td class="bit">7</td>
+</tr><tr>
+<td class="imm" colspan="4">4 bytes (a)</td>
+<td class="opx" colspan="4">padding</td>
+</tr><tr>
+<td class="fpr" colspan="8">8 bytes (b)</td>
+</tr><tr>
+<td class="gpr" colspan="4">4 bytes (c)</td>
+<td class="tdb">d[0]</td>
+<td class="tdb">d[1]</td>
+<td class="tdb">d[2]</td>
+<td class="tdb">d[3]</td>
+</tr><tr>
+<td class="tdb">d[4]</td>
+<td class="tdb">d[5]</td>
+<td class="tdb">d[6]</td>
+<td class="opx">padding</td>
+<td class="tdz" colspan="2">2 bytes (e)</td>
+<td class="opx" colspan="2">padding</td>
+</tr><tr>
+<td class="cpr" colspan="4">4 bytes (f)</td>
+<td class="opx" colspan="4">final padding</td>
+</tr></table>
+
+<p>In the example, to map the structure to memory, alignment was made along the boundary that is natural for each scalar.
+This alignment gives an additional four missing bytes between <var>a</var> and <var>b</var>,
+one byte between <var>d</var> and <var>e</var>, and two bytes between <var>e</var> and <var>f</var>.
+Since the alignment for the double precision number <var>b</var> is the strictest for this structure,
+then the whole structure should be aligned on an 8-byte boundary.
+This gives 4 more bytes at the end of the struct.
+</p>
+
+<p>Unaligned memory accesses may throw an error <error>Unaligned data address</error>.
+<archname/> may not contain any hardware support for unaligned memory accesses,
+limiting itself to the installed program handler of the corresponding interrupts.
+Therefore, the software is preferred to align all scalar values on their natural boundaries in memory.
+</p>
+
+<p>Since the instruction fetch, aligned load/store, and operations with semaphores operate only on aligned target addresses, they are atomic.
+The operation is <strong>atomic</strong> if for other agents working with memory (other processors, IO devices),
+memory access from our processor is an indivisible transaction (and vice versa).
+If our processor stores data to memory, then no other agent will be able to read from memory a mixture of old data and the newly written data replacing them.
+Similarly, if our processor reads data, then it will never read from memory a mixture of old data and new-write data replacing them from another agent.
+Of course, at the machine architecture level, these rules only apply to <strong>atoms</strong> memory,
+that is, correctly aligned objects of 1, 2, 4, 8, or 16 bytes in size.
+For arbitrary objects in memory, the atomic nature of their change is not guaranteed by architecture, and software tricks must be applied.
+</p>
+
+</section>
+
+<section id="mem_byteorder">
+<title>Byte order</title>
+
+<p>If scalars (individual data elements or instructions) were indivisible, then there would be no concept of <quote>byte order</quote>.
+It makes no sense to consider the order of bits or groups of bits within the smallest addressable memory atom,
+because this order for an atom cannot be observed and determined.
+The question of order arises only when scalars, which the programmer and processor refer to as indivisible objects,
+occupy more than one addressable memory atom.
+</p>
+
+<p>For most existing computer architectures, the smallest addressable memory atom is a 8-bit bytes.
+Other scalars consist of groups of 2, 4, 8, or 16 bytes in length.
+When a 4-byte scalar moves from register to memory, it occupies four consecutive byte addresses.
+Thus, it becomes necessary to establish the order of byte addresses relative to the scalar value:
+which byte contains the most significant eight bits of the scalar, which byte contains the next eight bits of importance, and so on.
+</p>
+
+<p>For a scalar consisting of several atoms (bytes) of memory, the choice of byte order in memory is essentially arbitrary.
+There is N! ways to determine the order of N bytes within a long number, but only two of these orderings are actually used.
+</p>
+
+<p>The order in which the smallest address is assigned to a byte that contains eight bits of a scalar of the lowest order (the rightmost bits),
+the next consecutive address is next in ascending order of eight bits, and so on.
+This order is called <def>little-endian</def> because it is least significant (from <em>to the smaller</em> end)
+the bits of the scalar, regarded as a binary number, are the first to go into memory.
+Intel-X86 is an example of an architecture using this byte order.
+</p>
+
+<p>In a little-endian machine, bytes within a large number are numbered from right to left
+in decreasing order of byte addresses, so the low byte is stored in memory at the lowest address.
+This is a direct byte order (a format for storing and transmitting binary data, in which the least (least significant) bit (byte) is transmitted first.
+</p>
+
+<table width="85%">
+<tr>
+<td class="bit">7</td>
+<td class="bit">6</td>
+<td class="bit">5</td>
+<td class="bit">4</td>
+<td class="bit">3</td>
+<td class="bit">2</td>
+<td class="bit">1</td>
+<td class="bit">0</td>
+</tr></table>
+
+<p>The order in which the smallest address is assigned to a byte that contains eight bits of a scalar of the highest order (the leftmost bits),
+the next consecutive address is the next in descending order of eight bits, and so on.
+This order is called <def>big-endian</def> because the most significant ones (from the <em>larger</em> end)
+the bits of the scalar, regarded as a binary number, are the first to go into memory.
+IBM PowerPC is a sample architecture using this byte order.
+</p>
+
+<p>In a big-endian machine, bytes within a large number are numbered from left to right
+in ascending order of byte addresses, so the low byte is stored in memory at the highest address.
+This is the reverse byte order (a format for storing and transmitting binary data in which the most significant (most significant) byte is transmitted or stored first.
+The terms <def>little/big-endian</def> comes from <em>Gulliver's Travel</em> Jonathan Swift.
+</p>
+
+<table width="85%"><tr>
+<td class="bit">0</td>
+<td class="bit">1</td>
+<td class="bit">2</td>
+<td class="bit">3</td>
+<td class="bit">4</td>
+<td class="bit">5</td>
+<td class="bit">6</td>
+<td class="bit">7</td>
+</tr></table>
+
+<p>Using the example of the following <var>S</var> structure of the C language containing a set of various scalars and a character string,
+shows the location of fields in memory under different conventions on byte order.
+Comments show values for each element of the structure.
+These values show how the individual bytes that make up each element of the structure are mapped into memory.
+</p>
+
+<code>
+struct {
+   int     a;     /* 0x1112_1314 (4 bytes) */
+   double  b;     /* 0x2122_2324_2526_2728 (8 bytes) */
+   int     c;     /* 0x3132_3334 (4 bytes) */
+   char    d[7];  /* "A","B","C","D","E","F","G" bytes array */
+   short   e;     /* 0x5152 (2 bytes) */
+   int     f;     /* 0x6162_6364 (4 bytes) */
+} S;
+</code>
+
+<p>C language rules for mapping structures allow the use of inserts (byte skipping)
+to align scalars in memory at desired (natural) boundaries.
+In the examples below, the mapping of the structure into memory is done with natural alignment
+border for each scalar. This alignment gives an additional four missing bytes
+between <var>a</var> and <var>b</var>, one byte between <var>d</var> and <var>e</var>,
+and two bytes between <var>e</var> and <var>f</var>.
+The same amount of padding is present in big-endian and little-endian mappings.
+</p>
+
+<p>The contents of each byte, as defined in the <var>S</var> structure, are displayed as a hexadecimal number or character (for line elements).
+Cell addresses (offsets from the beginning of the structure) are shown below the data stored at this address.
+</p>
+
+<table width="85%">
+<caption>Little-endian structure mapping <var>S</var></caption>
+<tr>
+<td class="imm">0x14<br/>0</td>
+<td class="imm">0x13<br/>1</td>
+<td class="imm">0x12<br/>2</td>
+<td class="imm">0x11<br/>3</td>
+<td class="opx">padding<br/>4</td>
+<td class="opx">padding<br/>5</td>
+<td class="opx">padding<br/>6</td>
+<td class="opx">padding<br/>7</td>
+</tr><tr>
+<td class="fpr">0x28<br/>8</td>
+<td class="fpr">0x27<br/>9</td>
+<td class="fpr">0x26<br/>10</td>
+<td class="fpr">0x25<br/>11</td>
+<td class="fpr">0x24<br/>12</td>
+<td class="fpr">0x23<br/>13</td>
+<td class="fpr">0x22<br/>14</td>
+<td class="fpr">0x21<br/>15</td>
+</tr><tr>
+<td class="gpr">0x34<br/>16</td>
+<td class="gpr">0x33<br/>17</td>
+<td class="gpr">0x32<br/>18</td>
+<td class="gpr">0x31<br/>19</td>
+<td class="tdb"><quote>A</quote><br/>20</td>
+<td class="tdb"><quote>B</quote><br/>21</td>
+<td class="tdb"><quote>C</quote><br/>22</td>
+<td class="tdb"><quote>D</quote><br/>23</td>
+</tr><tr>
+<td class="tdb"><quote>E</quote><br/>24</td>
+<td class="tdb"><quote>F</quote><br/>25</td>
+<td class="tdb"><quote>G</quote><br/>26</td>
+<td class="opx">padding<br/>27</td>
+<td class="tdz">0x52<br/>28</td>
+<td class="tdz">0x51<br/>29</td>
+<td class="opx">padding<br/>30</td>
+<td class="opx">padding<br/>31</td>
+</tr><tr>
+<td class="cpr">0x64<br/>32</td>
+<td class="cpr">0x63<br/>33</td>
+<td class="cpr">0x62<br/>34</td>
+<td class="cpr">0x61<br/>35</td>
+<td class="opx">padding<br/>36</td>
+<td class="opx">padding<br/>37</td>
+<td class="opx">padding<br/>38</td>
+<td class="opx">padding<br/>39</td>
+</tr></table>
+
+<table width="85%">
+<caption>Big-endian structure mapping <var>S</var></caption>
+<tr>
+<td class="imm">0x11<br/>0</td>
+<td class="imm">0x12<br/>1</td>
+<td class="imm">0x13<br/>2</td>
+<td class="imm">0x14<br/>3</td>
+<td class="opx">padding<br/>4</td>
+<td class="opx">padding<br/>5</td>
+<td class="opx">padding<br/>6</td>
+<td class="opx">padding<br/>7</td>
+</tr><tr>
+<td class="fpr">0x21<br/>8</td>
+<td class="fpr">0x22<br/>9</td>
+<td class="fpr">0x23<br/>10</td>
+<td class="fpr">0x24<br/>11</td>
+<td class="fpr">0x25<br/>12</td>
+<td class="fpr">0x26<br/>13</td>
+<td class="fpr">0x27<br/>14</td>
+<td class="fpr">0x28<br/>15</td>
+</tr><tr>
+<td class="gpr">0x31<br/>16</td>
+<td class="gpr">0x32<br/>17</td>
+<td class="gpr">0x33<br/>18</td>
+<td class="gpr">0x34<br/>19</td>
+<td class="tdb"><quote>A</quote><br/>20</td>
+<td class="tdb"><quote>B</quote><br/>21</td>
+<td class="tdb"><quote>C</quote><br/>22</td>
+<td class="tdb"><quote>D</quote><br/>23</td>
+</tr><tr>
+<td class="tdb"><quote>E</quote><br/>24</td>
+<td class="tdb"><quote>F</quote><br/>25</td>
+<td class="tdb"><quote>G</quote><br/>26</td>
+<td class="opx">padding<br/>27</td>
+<td class="tdz">0x51<br/>28</td>
+<td class="tdz">0x52<br/>29</td>
+<td class="opx">padding<br/>30</td>
+<td class="opx">padding<br/>31</td>
+</tr><tr>
+<td class="cpr">0x61<br/>32</td>
+<td class="cpr">0x62<br/>33</td>
+<td class="cpr">0x63<br/>34</td>
+<td class="cpr">0x64<br/>35</td>
+<td class="opx">padding<br/>36</td>
+<td class="opx">padding<br/>37</td>
+<td class="opx">padding<br/>38</td>
+<td class="opx">padding<br/>39</td>
+</tr></table>
+
+<p>For <archname/> architecture, the primary is the little-endian direct order.
+All operations on data in registers/memory are carried out according to this order.
+Implementations may include optional support for big-endian addressing for loading/storing numbers.
+</p>
+
+<p>The bit numbering within bytes doesn't affect the byte numbering convention (big-endian or little-endian).
+The byte numbering convention doesn't matter when accessing the full aligned data in memory.
+However, the numbering agreement is important when accessing less or not aligned data,
+or when manipulating data in registers, as follows:
+</p>
+
+<p>Retrieving the 5th byte from an 8-byte number into the low byte of the register requires a right shift
+5 bytes according to the little-endian agreement, but the right shift is 2 bytes according to the big-endian agreement.
+</p>
+
+<p>The manipulation of data in the register is almost the same for both conventions.
+In both integers and floating-point numbers store the sign bits in the leftmost byte and their least significant bit in the rightmost byte,
+so the same integer instructions and floating-point instructions are used unchanged for both conventions.
+However, big-endian character strings have their most significant character on the left,
+while little-endian strings have their most significant character on the right.
+</p>
+
+<p>In addition to <strong>little-endian</strong> and <strong>big-endian</strong>,
+there are other (combined) options for storing long scalars in memory.
+For example, some architecture (PDP-11?) stores double-byte numbers according to the little-endian order,
+but 4-byte numbers as pairs of double-byte numbers but according to big-endian order.
+It happens that integers are stored according to one principle, and real ones according to another,
+for example, if a floating-point coprocessor (ARM, TMS320C4x) is added to the integer processor later.
+</p>
+
+</section>
+
+<section id="memory_consistency_model">
+<title>Memory consistency model</title>
+
+<p>There are several memory-consistency models for SMP systems:</p>
+
+<ol>
+<li>Sequential consistency (all reads and all writes are in-order).</li>
+<li>Relaxed consistency (some types of reordering are allowed):</li>
+<li><ul>
+<li>loads can be reordered after loads (for better working of cache coherency, better scaling),</li>
+<li>loads can be reordered after stores,</li>
+<li>stores can be reordered after stores,</li>
+<li>stores can be reordered after loads.</li>
+</ul></li>
+<li>Weak consistency (reads and writes are arbitrarily reordered, limited only by explicit memory barriers)</li>
+</ol>
+
+<p>Atomic operations can be reordered with loads and stores.</p>
+
+<p>The instruction fetching is incoherent with data,
+so self-modifying code can't be executed without special instruction cache flush/reload instructions plus maybe jump instructions.
+</p>
+
+<p>The <archname/> follows the weak memory model.
+And same the weak memory model with acquire loads and release stores also called release-consistency model.
+Only the acquire/release atomic instructions are synchronization points.</p>
+
+<table>
+<caption>Memory ordering in some architectures</caption>
+<thead>
+<tr>
+<th rowspan="2" width="20%">Architecture</th>
+<th colspan="2" width="20%">Loads can be reordered after</th>
+<th colspan="2" width="20%">Stores can be reordered after</th>
+<th colspan="2" width="20%">Atomics can be reordered with</th>
+<th rowspan="2" width="10%">Dependent loads can be reordered</th>
+<th rowspan="2" width="10%">Incoherent instruction cache/<br/>pipeline</th>
+</tr>
+<tr>
+<th>loads</th>
+<th>stores</th>
+<th>loads</th>
+<th>stores</th>
+<th>loads</th>
+<th>stores</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>Alpha</td>      <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> </tr>
+<tr><td>ARM</td>        <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <td></td>    <bit>+</bit> </tr>
+<tr><td>RISC-V WMO</td> <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <td></td>    <bit>+</bit> </tr>
+<tr><td>RISC-V TSO</td> <td></td>    <td></td>    <bit>+</bit> <td></td>    <td></td>    <td></td>    <td></td>    <bit>+</bit> </tr>
+<tr><td>PA-RISC</td>    <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <td></td>    <td></td>    <td></td>    <td></td>    </tr>
+<tr><td>POWER</td>      <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <td></td>    <bit>+</bit> </tr>
+<tr><td>SPARC RMO</td>  <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <td></td>    <bit>+</bit> </tr>
+<tr><td>SPARC PSO</td>  <td></td>    <td></td>    <bit>+</bit> <bit>+</bit> <td></td>    <bit>+</bit> <td></td>    <bit>+</bit> </tr>
+<tr><td>SPARC TSO</td>  <td></td>    <td></td>    <bit>+</bit> <td></td>    <td></td>    <td></td>    <td></td>    <bit>+</bit> </tr>
+<tr><td>x86</td>        <td></td>    <td></td>    <bit>+</bit> <td></td>    <td></td>    <td></td>    <td></td>    <bit>+</bit> </tr>
+<tr><td>AMD-64</td>     <td></td>    <td></td>    <bit>+</bit> <td></td>    <td></td>    <td></td>    <td></td>    <td></td>    </tr>
+<tr><td>IA-64</td>      <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <td></td>    <bit>+</bit> </tr>
+<tr><td>IBM-Z</td>      <td></td>    <td></td>    <bit>+</bit> <td></td>    <td></td>    <td></td>    <td></td>    <td></td>    </tr>
+<tr><td>Postrisc</td>   <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <bit>+</bit> <td></td>    <bit>+</bit> </tr>
+</tbody></table>
+
+<note>On Alpha the dependent loads can be reordered.
+If the processor first fetches a pointer to some data and then the data,
+it might not fetch the data itself but use stale data which it has already cached and not yet invalidated.
+Allowing this relaxation makes cache hardware simpler and faster but leads to the requirement of memory barriers for readers and writers.
+On Alpha hardware (like multiprocessor Alpha 21264 systems) cache line invalidations sent to other processors are processed in lazy fashion by default,
+unless requested explicitly to be processed between dependent loads.
+The Alpha architecture specification also allows other forms of dependent loads reordering,
+for example using speculative data reads ahead of knowing the real pointer to be dereferenced.
+</note>
+
+</section>
+
+<section id="memory_atomics">
+<title>Atomic/synchronization instructions</title>
+
+<p>The processor implementation must follow the programmatic order of executing the instructions of a single-threaded program.
+But the effects of the actions of one thread on the memory can be observed by other threads not in the programmatic order of this thread 
+Depending on the guarantees that the architecture explicitly gives and the permissions that the implementation is explicitly allowed,
+talk about a stricter or weaker ordering of memory.
+<archname/> is an architecture with weak memory ordering.
+There are no obvious restrictions on the visibility of third-party processors or other devices
+(for example, input-output) actions on the memory of the current thread.
+Similarly, the current thread has no explicit guarantees on the other agents actions visibility order.
+</p>
+
+<p>Special <quote>fence</quote> instructions are memory barriers.
+</p>
+
+<slot_table>
+<caption>Instruction format for atomic fences</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <noargs>opx</noargs>
+</slot>
+</slot_table>
+
+<table>
+<caption>atomic fence instructions</caption>
+<thead><tr>
+<th>Fence instruction</th>
+<th>Memory ordering</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><mim>fence_a</mim></td><td>acquire</td></tr>
+<tr><td><mim>fence_r</mim></td><td>release</td></tr>
+<tr><td><mim>fence_ar</mim></td><td>acquire-release (acq_rel)</td></tr>
+<tr><td><mim>fence_sc</mim></td><td>sequential-consistent (seq_cst)</td></tr>
+</tbody>
+</table>
+
+<p>Special instructions <quote>load-atomic</quote> and <quote>store-atomic</quote>
+used to push the visibility of changes from one thread to another.
+relaxed - normal operation, acquire - acquire changes, release - submit changes.
+Before changing the general data, the thread performs acquire by load-acquire from the watchdog variable.
+Similarly, after a change is made to the general data, the stream pushes the changes, executing release by store-release to the watchdog variable.
+</p>
+
+<code>INSN_MNEMONIC target, base</code>
+
+<slot_table>
+<caption>Instruction format for atomic load/store</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>target</gpr>
+    <gpr>base</gpr>
+    <regzero>0</regzero>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<p>These instructions are one-way barriers.
+They do not allow speculative and out-of-order execution of operations with memory through themselves.
+Acquire doesn't allow the subsequent instructions to move forward, and release doesn't let the instructions before it lag behind.
+With the correct (pairwise) use of acquire-release, a closed section of code is obtained, locked at the top (acquire) and at the bottom (release).
+</p>
+
+<table>
+<caption>atomic load-store instructions</caption>
+<thead><tr>
+<th>Description</th>
+<th>Ordering</th>
+<th>Instructions</th>
+</tr>
+</thead>
+<tbody>
+<tr><td rowspan="2">load atomic</td><td>relaxed</td>
+    <td><mim>amx_ld_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>acquire</td>
+    <td><mim>amq_ld_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td rowspan="2">store atomic</td><td>relaxed</td>
+    <td><mim>amx_st_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>release</td>
+    <td><mim>amq_st_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+</tbody>
+</table>
+
+<p>The <def>load-op</def> atomic instructions copy the old value of a variable from memory to register,
+and sets a new value in memory (test-and-set), or obtained from the old (fetch-and-add and analogues).
+The possible memory orderings: <type>relaxed</type>, <type>acquire</type>, <type>release</type>, <type>acq_rel</type> (acquire-release).
+</p>
+
+<code>ea = <param>base</param>
+<param>dst</param> = mem[ea]
+mem[ea] = OP(<param>dst</param>, <param>src</param>)
+</code>
+
+<slot_table>
+<caption>Instruction format <mim>load-op</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>base</gpr>
+    <gpr>src</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<code>ld_op_type dst, base, src</code>
+
+<table>
+<caption>atomic instructions load-op</caption>
+<thead><tr>
+<th>Description</th>
+<th>Ordering</th>
+<th>Instructions</th>
+</tr>
+</thead>
+<tbody>
+<tr><td rowspan="4">swap</td><td>relaxed</td>
+    <td><mim>amx_swap_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>acquire</td>
+    <td><mim>amq_swap_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>release</td>
+    <td><mim>amr_swap_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>acq_rel</td>
+    <td><mim>amz_swap_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td rowspan="4">addition</td><td>relaxed</td>
+    <td><mim>amx_ld_add_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>acquire</td>
+    <td><mim>amq_ld_add_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>release</td>
+    <td><mim>amr_ld_add_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>acq_rel</td>
+    <td><mim>amz_ld_add_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td rowspan="4">bitwise AND</td><td>relaxed</td>
+    <td><mim>amx_ld_and_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>acquire</td>
+    <td><mim>amq_ld_and_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>release</td>
+    <td><mim>amr_ld_and_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>acq_rel</td>
+    <td><mim>amz_ld_and_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td rowspan="4">bitwise OR</td><td>relaxed</td>
+    <td><mim>amx_ld_or_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>acquire</td>
+    <td><mim>amq_ld_or_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>release</td>
+    <td><mim>amr_ld_or_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>acq_rel</td>
+    <td><mim>amz_ld_or_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td rowspan="4">bitwise XOR</td><td>relaxed</td>
+    <td><mim>amx_ld_xor_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>acquire</td>
+    <td><mim>amq_ld_xor_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>release</td>
+    <td><mim>amr_ld_xor_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>acq_rel</td>
+    <td><mim>amz_ld_xor_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td rowspan="4">signed minimum</td><td>relaxed</td>
+    <td><mim>amx_ld_min_[i8|i16|i32|i64|i128]</mim></td>
+</tr>
+<tr><td>acquire</td>
+    <td><mim>amq_ld_min_[i8|i16|i32|i64|i128]</mim></td>
+</tr>
+<tr><td>release</td>
+    <td><mim>amr_ld_min_[i8|i16|i32|i64|i128]</mim></td>
+</tr>
+<tr><td>acq_rel</td>
+    <td><mim>amz_ld_min_[i8|i16|i32|i64|i128]</mim></td>
+</tr>
+<tr><td rowspan="4">signed maximum</td><td>relaxed</td>
+    <td><mim>amx_ld_max_[i8|i16|i32|i64|i128]</mim></td>
+</tr>
+<tr><td>acquire</td>
+    <td><mim>amq_ld_max_[i8|i16|i32|i64|i128]</mim></td>
+</tr>
+<tr><td>release</td>
+    <td><mim>amr_ld_max_[i8|i16|i32|i64|i128]</mim></td>
+</tr>
+<tr><td>acq_rel</td>
+    <td><mim>amz_ld_max_[i8|i16|i32|i64|i128]</mim></td>
+</tr>
+<tr><td rowspan="4">unsigned minimum</td><td>relaxed</td>
+    <td><mim>amx_ld_max_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>acquire</td>
+    <td><mim>amq_ld_max_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>release</td>
+    <td><mim>amr_ld_max_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>acq_rel</td>
+    <td><mim>amz_ld_max_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td rowspan="4">unsigned maximum</td><td>relaxed</td>
+    <td><mim>amx_ld_max_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>acquire</td>
+    <td><mim>amq_ld_max_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>release</td>
+    <td><mim>amr_ld_max_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>acq_rel</td>
+    <td><mim>amz_ld_max_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+</tbody>
+</table>
+
+<p>The <def>store-op</def> atomic instructions update value in memory via corresponing operation.
+Comparing to <def>load-op</def>, they don't return old variable value from memory to register,
+so may be implemented as a one-way communication.
+The possible memory orderings: <type>relaxed</type>, <type>acquire</type>, <type>release</type>,
+<type>acq_rel</type> (acquire-release), <type>seq_cst</type> (sequentially-consistent).
+</p>
+
+<code>ea = <param>base</param>
+mem[ea] = mem[ea] op <param>src</param>
+</code>
+
+<slot_table>
+<caption>Instruction format <mim>store-op</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <regzero>0</regzero>
+    <gpr>base</gpr>
+    <gpr>src</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<code>store_op_type base, src</code>
+
+<table>
+<caption>atomic instructions store-op</caption>
+<thead><tr>
+<th>Description</th>
+<th>Ordering</th>
+<th>Instruction</th>
+</tr>
+</thead>
+<tbody>
+<tr><td rowspan="2">addition</td>
+<td>relaxed</td><td><mim>amx_st_add_[u8|u16|u32|u64|u128]</mim></td>
+</tr><tr>
+<td>release</td><td><mim>amr_st_add_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td rowspan="2">bitwise AND</td>
+<td>relaxed</td><td><mim>amx_st_and_[u8|u16|u32|u64|u128]</mim></td>
+</tr><tr>
+<td>release</td><td><mim>amr_st_and_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td rowspan="2">bitwise OR</td>
+<td>relaxed</td><td><mim>amx_st_or_[u8|u16|u32|u64|u128]</mim></td>
+</tr><tr>
+<td>release</td><td><mim>amr_st_or_[u8|u16|u32|u64|u128]</mim></td>
+</tr><tr><td rowspan="2">bitwise XOR</td>
+<td>relaxed</td><td><mim>amx_st_xor_[u8|u16|u32|u64|u128]</mim></td>
+</tr><tr>
+<td>release</td><td><mim>amr_st_xor_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td rowspan="2">signed minimum</td>
+<td>relaxed</td><td><mim>amx_st_min_[i8|i16|i32|i64|i128]</mim></td>
+</tr><tr>
+<td>release</td><td><mim>amr_st_min_[i8|i16|i32|i64|i128]</mim></td>
+</tr><tr>
+<td rowspan="2">signed maximum</td>
+<td>relaxed</td><td><mim>amx_st_max_[i8|i16|i32|i64|i128]</mim></td>
+</tr><tr>
+<td>release</td><td><mim>amr_st_max_[i8|i16|i32|i64|i128]</mim></td>
+</tr><tr>
+<td rowspan="2">unsigned minimum</td>
+<td>relaxed</td><td><mim>amx_st_min_[u8|u16|u32|u64|u128]</mim></td>
+</tr><tr>
+<td>release</td><td><mim>amr_st_min_[u8|u16|u32|u64|u128]</mim></td>
+</tr><tr>
+<td rowspan="2">unsigned maximum</td>
+<td>relaxed</td><td><mim>amx_st_max_[u8|u16|u32|u64|u128]</mim></td>
+</tr><tr>
+<td>release</td><td><mim>amr_st_max_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+</tbody>
+</table>
+
+<p>Instructions <mim>cas</mim> (<miname>compare and swap</miname>),
+Designed for non-blocking interactions in a multi-threaded multiprocessor environment.
+Both instructions are atomic indivisible memory operations that cannot be partially performed.
+</p>
+
+<p>The <mim>cas</mim> instruction reads an N-byte number from memory at the address from the <param>base</param> register,
+and compares it with the value in the register <param>dst</param>.
+If the values match, the instruction saves the new value from the <param>src</param> register at this address.
+Otherwise, the instruction doesn't save anything at this address.
+The base address must be aligned at the N-byte boundary.
+The read value is stored in the register <param>dst</param>.
+</p>
+
+<code>value = mem[base]
+if (value == expected) {
+  mem[base] = desired
+}
+dst = value
+</code>
+
+<slot_table>
+<caption>Format of instructions <mim>casX</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>base</gpr>
+    <gpr>expected</gpr>
+    <gpr>desired</gpr>
+    <fused_opx>opx</fused_opx>
+</slot>
+</slot_table>
+
+<table>
+<caption>atomic CAS instructions</caption>
+<thead><tr>
+<th>Ordering</th>
+<th>Instruction</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>relaxed</td>
+    <td><mim>amx_cas_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>acquire</td>
+    <td><mim>amq_cas_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>release</td>
+    <td><mim>amr_cas_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+<tr><td>acq_rel</td>
+    <td><mim>amz_cas_[u8|u16|u32|u64|u128]</mim></td>
+</tr>
+</tbody>
+</table>
+
+<p>Using the following procedure, a stream can modify the contents of a memory cell even if there is a possibility that the stream
+can be interrupted and replaced by another thread that will update the cell,
+or that a thread on another processor can simultaneously modify a cell.
+First, an 8-byte number is entirely loaded into the register.
+Then, the updated value is computed and placed in another <param>sval</param> register.
+Then the <mim>cas_u128</mim> instruction is executed with parameters
+<param>test</param> (register number where the initial value),
+<param>base</param> (base address register number) and
+<param>sval</param> (register number that contains the updated value).
+If the modification was completed successfully, the original value will be returned.
+If the memory cell doesn't contain the original value
+(the current thread was interrupted or the thread of another processor interrupted), the update will not be successful,
+general register with the number <param>dst</param> of the instruction <mim>cas_u128</mim> contains the new current value of the memory cell.
+If the memory cell doesn't contain an original value, the thread may try to repeat the procedure again using the new current value.
+</p>
+
+<code>
+loop:
+<mim>amx_ld_i64</mim> old, base
+<mim>mov</mim> save, test
+...
+<mim>add_imm_i64</mim> new, old, 12; some kind of modification
+...
+<mim>amx_cas_u64</mim> found, base, old, new
+<mim>br_ne_i64</mim> found, old, loop
+</code>
+
+<p>The instruction <mim>cas_u64</mim> can be used for controlled sharing of a common data area,
+including the ability to send messages (to a linked message list) when a common area is in use.
+To achieve this, an 8-byte number in memory can be used as a control number.
+A value of zero indicates that the common area is not in use, and that no messages exist.
+A negative value indicates that the area is in use by someone, and that no messages exist.
+A positive value indicates that the shared area is in use,
+and that the value is the address of the most recent message added to the list.
+Therefore, any number of threads wishing to capture a common area,
+can use <mim>cas_u64</mim> to update the check number,
+to indicate that the area is in use or add messages to the list.
+The only thread that has captured the shared area can also safely use <mim>cas_u128</mim> to remove messages from the list.
+</p>
+
+<p>The instruction <mim>cas_u128</mim> can be used similarly to <mim>cas_u64</mim>.
+Additionally, it has other uses.
+Consider a linked data list, with a check number used to address the first message in the list, as described above.
+If multiple threads are allowed to delete messages using <mim>cas_u64</mim>
+(and not just the only thread that captured the common area), then the list will probably be incorrectly modified.
+This can happen if, for example, after one thread reads the address
+the very last message to move the message, another thread will delete the first two messages,
+and then adds the first message back to the linked list (<quote>ABA</quote> issue in IBM terminology).
+The first thread, continuing the interrupted execution, will not be able to determine that the list has changed.
+By increasing the size of the control word to a pair of 8-byte numbers,
+containing the address of the first message and the modification tag (change number),
+which increases by 1 each time the list is modified, and using <mim>cas_u128</mim> to update both fields together,
+the possibility of incorrect list updating can be reduced to an insignificant level.
+Namely, incorrect modification can occur only if the first stream
+was interrupted and during this time the number of changes to the list is exactly a multiple of 2<sup>64</sup>,
+and only if the last change to the list uses the original address of the message.
+</p>
+
+</section>
+
+<section id="memory_attributes">
+<title>Memory attributes</title>
+
+
+<p>The architecture of any processor needs a simple and effective mechanism for distinguishing memory accesses
+and IO operations for IO devices mapped to the address space.
+When accessing the memory, it is possible to cache data with a write back, blocking operations with semaphores are allowed,
+optimizing reordering of load/store operations and optimizing write-combining(coalescing) of write operations are available.
+For operations with mapped IO devices, write through is strictly necessary and cannot be cached,
+possible side effects even when reading, you need a strict order (sequential) without permutations/merges.
+</p>
+
+<p>In addition, a dedicated, fixed address range must exist in the physical address space for the bootloader code.
+It's some analog of the PC EPROM and BIOS.
+It contains entry point from which the execution starts after the system restart, and other embedded code,
+implementation-dependent (processor-dependent code or PDC) and platform (system-dependent code or SDC).
+It is a read-only memory block, although updating may be permitted.
+</p>
+
+<p>Memory attributes define speculativeness, cacheability, orderliness, and write policy.
+If virtual addressing is enabled, the memory attributes that define the actually displayed physical page are determined by the TLB.
+If physical addressing is enabled, memory attributes are determined based on the physical address.
+</p>
+
+<p>The software must use the correct address subspaces when using physical addressing.
+Otherwise, incorrect access to IO devices with side effects is possible.
+</p>
+
+<p>An address range can be either cacheable or non-cacheable.
+If the range is <def>cacheable</def>, the processor is allowed to distribute a local copy
+corresponding physical memory at all levels of the processor cache hierarchy.
+Distribution can be changed by cache management instructions.
+</p>
+
+<p>The cached page is memory coherent, i.e. the processor and memory system guarantee
+that there is a consistent representation of memory for each processor.
+Processors support multiprocessor cache coherence based on physical addresses
+between all processors in the coherence domain (tightly coupled multiprocessors).
+Coherence doesn't depend on virtual aliases, since they are forbidden.
+</p>
+
+<p>The processor is not required to support coherence between local instruction and data caches;
+that is, locally, the entry may not be observable by the local instruction cache.
+Moreover, multiprocessor coherence is not required from the instruction cache.
+However, the processor must ensure that the operations of other IO agents like <quote>Direct Memory Access</quote> (DMA) are physically coherent with a cache of data and instructions.
+</p>
+
+<p>For an uncached access, the processor doesn't provide any coherence mechanisms.
+The memory system must ensure that a consistent memory representation is seen by each processor.
+</p>
+
+<p>When writing to cached memory with <def>write-back</def>,
+only the processor-owned local copy of the data cache line changes.
+Writing to a lower level cache system (or to the level of the physical arrangement of data in memory)
+occurs when a changed cache line is explicitly (or implicitly) pushed out of a higher level cache.
+With <def>write through</def> policy, data changes affect all levels of caching immediately.
+</p>
+
+<p>For non-cached address ranges, a <def>write-combining</def> (coalescing) can be set,
+which tells the processor that multiple writes to a limited memory area (typically 32 bytes) can be
+assembled together in the <def>write buffer</def> and made later as one large combined write.
+The processor can combine writes for an indefinite period of time.
+Several writes can be combined into one large, which accumulates in the buffer.
+Write-combining <ndash/> means to increase processor efficiency.
+A processor with multiple write buffers should provide the preemptive order,
+using buffers approximately the same, even if some buffers are only partially full.
+</p>
+
+<p>The processor can flush data from write buffers to memory in any order.
+The combined writes aren't performed in the original order.
+Write-combining can be either spatial or time-based.
+For example, writing bytes 4 and 5 and writing bytes 6 and 7 are combined into a single writing of bytes 4, 5, 6, and 7.
+In addition, writing bytes 5 and 6 is combined with subsequent writing of bytes 6 and 7,
+into a single write of bytes 5, 6, and 7 (with the removing of the first write to the byte 6).
+</p>
+
+<p>The memory attributes may be defined in several ways.</p>
+
+<p>Memory attributes may be defined via special registers at the level of physical address ranges.
+In X86 the special <def>memory type range registers</def> (MTRRs) are a set of processor supplementary capability control registers
+that provide system software with control of how accesses to memory ranges by the CPU are cached.
+It uses a set of programmable model-specific registers (MSRs) which are special registers provided by most modern CPUs.
+Possible access modes to memory ranges can be uncached, write-through, write-combining, write-protect, and write-back.
+In write-back mode, writes are written to the CPU's cache and the cache is marked dirty, so that its contents are written to memory later.
+Write-combining allows bus write transfers to be combined into a larger transfer before bursting them over the bus to allow more efficient writes to system resources like graphics card memory.
+This often increases the speed of image write operations by several times, at the cost of losing the simple sequential read/write semantics of normal memory.
+Additional bits, added in AMD64, allow the shadowing of ROM contents in system memory (shadow ROM), and the configuration of memory-mapped I/O.
+</p>
+
+<p>Memory attributes may be defined at the level of virtual addresses via virtual page properties as an additional part of cached translation info.
+Then such per-page memory attributes may redefine previous per-range physical address atributes or restrict them in compatible manner.
+</p>
+
+<!--
+For <em>virtual</em> memory accesses, physical properties of memory are described by the <regfield>ma</regfield> (<em>memory attributes</em>) field of each virtual translation.
+<p>Encoding virtual memory address attributes (incomplete)
+</p>
+<p>Insert TLB (itc) instruction that attempts to insert stored attributes
+memory (Table 4-10) in increasing TLB Saved Register/Region errors.
+External system operation is undefined if software inserts
+memory attribute supported by the processor but not supported by the external system.
+
+<p>If the software changes the memory attributes for the page,
+software should flush any copies of the processor cache for the following changes to the memory attribute:
+
+<p>Speculative/non-speculative, cacheable/uncacheable (for transitions from cacheable to uncacheable), and sequence.
+The software should flush any connecting buffers if the page is changed (replaced) from the connection to any other attribute.
+
+<p>It is recommended that processor models report a machine emergency.
+Validation terminates if any of the following attribute aliases is detected:
+o Connecting a buffer click on a non-connecting page.
+o clicking on a cache on a non-cached page, other than as a destination local or remote stream cache (fc) instruction.
+-->
+
+<p>Memory attributes may be determined by physical memory mapping only.
+In this case, fixed address ranges have specified memory attributes.
+Memory attributes are set implicitly during the initial physical address ranges mapping at reset and can't be changed further.
+</p>
+
+<p>In the <archname/>, the last way will be choosen.
+Memory attributes of physical address ranges are defined from their mapping to corresponding physical adreess ranges.
+They can't be redefind further via special registers and/or page properties.
+So the physical address space is divided into fixed parts with mmio-like and memory-like address ranges.
+</p>
+
+<table>
+<caption>Classification of physical addresses</caption>
+<thead><tr>
+<th>Addresses</th>
+<th>Use</th></tr>
+</thead><tbody>
+<tr><td>0 to 1 GiB</td><td>mmio-like for compatible devices (not 64-bit ready).</td></tr>
+<tr><td>1 to 4 GiB</td><td>memory-like for compatible devices (not 64-bit ready).</td></tr>
+<tr><td>4-256 GiB</td><td>mmio-like for 64-bit ready devices</td></tr>
+<tr><td>over 256 GiB</td><td>memory-like main space.</td></tr>
+</tbody></table>
+
+</section>
+
+<section id="cpu_memory_map">
+<title>Memory map</title>
+
+<p>From the system point of view, the physical address space is a bunch of devices, each of which is mapped to continuous address range.
+Everything is the memory-mapped device:
+memory RAM units are devices, external io devices are naturally memory-mapped devices, even processor cores are memory-mapped devices.
+</p>
+
+<p>The bus controller which controls memory mapping is also the memory-mapped device.
+The special <quote>device array</quote> device maps all device configuration spaces (similar to PCI root complex).
+Each device has 4 KiB configuration space maximum in device array.
+</p>
+
+<p>At least one block address in the physical memory map should be fixed in architecture:
+starting address in ROM for code execution after reset.
+Other blocks layout may be also fixed.
+Or may be known from the ROM code.
+</p>
+
+<table>
+<thead><tr>
+<th>start</th>
+<th>end</th>
+<th>size</th>
+<th>description</th>
+</tr></thead>
+<tbody>
+<tr><td><pre>0x0000000000000000</pre></td><td><pre>0x00000000ffffffff</pre></td><td>4GiB</td><td>reserved</td></tr>
+<tr><td><pre>0x0000000100000000</pre></td><td><pre>0x00000001000fffff</pre></td><td>1MiB</td><td>chipset control</td></tr>
+<tr><td><pre>0x00000001f0000000</pre></td><td><pre>0x00000001ffffffff</pre></td><td>256MiB</td><td>ROM</td></tr>
+<tr><td><pre>0x0000000200000000</pre></td><td><pre>0x00000002ffffffff</pre></td><td>4GiB</td><td>PCIE ECAMs (16x256MiB)</td></tr>
+<tr><td><pre>0x0000004000000000</pre></td><td><pre>0x0000004fffffffff</pre></td><td>64GiB</td><td>PCIE BARs</td></tr>
+<tr><td><pre>0x0000010000000000</pre></td><td><pre>0x000003ffffffffff</pre></td><td>2TiB</td><td>RAM</td></tr>
+</tbody>
+</table>
+
+<p>The memory map should be consistent with memory attributes.
+Chipset control, PCIE config spaces, memory-mapped io: should be mapped to mmio-like ranges.
+Memory devices: should be mapped to memory-like ranges.
+ROM devices: may be both, but the startup ROM should be memory-like.
+</p>
+
+</section>
+
+<section id = "cpu_memory_related_instructions">
+<title>Memory-related instructions</title>
+
+<p>Instructions to clear the cache <mim>icbf</mim> (<miname>instruction cache block flush</miname>)
+and <mim>dcbf</mim> (<miname>data cache block flush</miname>) supplant the entire contents of the write buffers,
+whose addresses are no more than 32 bytes from the aligned address (at the boundary of 32 bytes),
+specified by <mim>icbf</mim> or <mim>dcbf</mim>, forcing the data to become visible.
+The <mim>icbf</mim> and <mim>dcbf</mim> instructions may also preempt additional write buffers.
+</p>
+
+<p>Instruction without parameters <mim>msync</mim> (<miname>memory synchronize</miname>) <ndash/>
+this is a hint for the processor to speed up the flushing out of all pending (buffered) stores, regardless of their addresses.
+This makes pending entries visible to other memory agents.
+</p>
+
+<p>There is no way to know when the preemption of writes will be completed.
+The ordering of joined records is not guaranteed, so that later writes may occur before previous writes.
+To ensure that preceding linked entries are made visible before later entries,
+software must serialize between entries.
+</p>
+
+<p>The processor can at any time flush connected writes to memory in any order before the software explicitly requires it.
+</p>
+
+<p>Pages that allow writes to be joined are not necessarily coherent with write buffers or caches of other processors, or with local processor caches.
+Downloads to connected pages of memory by the processor see the results of all previous writes by the same processor in the same connected page of memory.
+Memory calls made by a connecting buffer (such as buffer streams) have an unordered non-sequential memory ordering attribute.
+</p>
+
+<p>The MMGR family includes instructions for working with special registers, barrier instructions,
+cache management, dynamic procedure calls, interprocess communication, etc.
+</p>
+
+<slot_table>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <cacheopx>opx</cacheopx>
+    <jump>uimm28</jump>
+</slot>
+<slot>
+    <opc>opcode</opc>
+    <cacheopx>opx</cacheopx>
+    <gpr>base</gpr>
+    <binimm>simm21</binimm>
+</slot>
+<slot>
+    <opc>opcode</opc>
+    <cacheopx>opx</cacheopx>
+    <gpr>base</gpr>
+    <gpr>index</gpr>
+    <scale>scale</scale>
+    <indexed_opx>opx</indexed_opx>
+    <idisp>simm7</idisp>
+</slot></slot_table>
+
+<p>The second register contains the base address (only the address register).
+The rest of the instruction is reserved for storing the displacement, a 7-bit signed number.
+Formulas to get the effective address:</p>
+
+<p><reg>ip</reg> + 16 <times/> sign_extend(label23)</p>
+<p>gr [base] + sign_extend(disp)</p>
+<p>gr [base] + (gr [index] <lshift/> scale) + sign_extend(disp)</p>
+
+<p>Instructions ECB (Evict cache block), FETCH (Prefetch data), FETCHM (Prefetch data, modify intent), WH64 (Write hint 64 bytes)
+regulate the use of cache resources.</p>
+
+<p>FETCH - load the block into the cache for reading N times (if N=0, then free the block).
+</p>
+
+<p>FETCHM - load a block into the cache for modification N times (if N=0, then push the block out of the cache into memory).
+</p>
+
+<!--
+<p>Any issued operation or instruction of a barrier, force - data was connected,
+to become visible before the instruction itself becomes visible.</p>
+-->
+
+</section>
+
+</chapter>

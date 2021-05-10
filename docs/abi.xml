@@ -1,0 +1,1332 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<chapter xmlns="http://www.example.com/postrisc" id="abi">
+<title>Application Model (Application Binary Interface)</title>
+
+<preface>
+<p>This chapter gathers information about the ABI <ndash/> software binary interface.
+This includes questions about what the runtime and program model are,
+what are the sections and segments of the program, how the program finds its private data,
+what are the available addressing methods, what are the accepted agreements on the relationships between the procedures
+and register preservation, relocation types and object file formats are described.
+</p>
+
+<p>Depending on the execution environment (hardware capabilities of the target architecture, type of operating system)
+program models are (in order of the history of the emergence and growth of universality):
+</p>
+
+<ul>
+<li>Absolute <ndash/> MS DOS for Intel X86</li>
+<li>Relative <ndash/>?</li>
+<li>Segmented (with protection based on access windows to a single address space) <ndash/>?</li>
+<li>Implicitly segmented based on a single global address space <ndash/> IBM AIX for POWER, HP-UX for HP PA-RISC</li>
+<li>Virtual memory and multiple isolated address spaces (MAS) <ndash/> Windows, Unix, Linux</li>
+<li>Virtual memory and uniform global address space (SAS) <ndash/> IBM AS/400, Palm OS, Mungi, Opal</li>
+</ul>
+
+<p>For the <archname/> system, a combined SAS/MAS environment with implicit segmentation was selected,
+when each segment can be configured as SAS or MAS.</p>
+
+</preface>
+
+<section id="abi_program_sections">
+<title>Sections and segments</title>
+
+<p>The compiler divides the different parts of the generated object code and data into different sections.
+During linking, when combining object files, sections with the same name come together
+and consolidate, getting an output file with one instance of each type of section.
+These sections of the output file are further grouped into several segments,
+which are processed by the loader as indivisible units.
+</p>
+
+<p>The purpose of sections is to allow the compiler to generate separate pieces of code and data,
+which can be combined with other similar parts from other object files at the build stage.
+This makes it possible to achieve link locality, and confidence in the correct addressability of the contents of these sections.
+The most important section attributes are the type of access to the section pages;
+all data in one section shares the same minimum set of permissions.
+</p>
+
+<p>The purpose of the segments is to allow the linker to group sections into fewer program units.
+Each segment has unique addressing methods for it, and sections of one segment are addressed in the same way.
+The compiler may make assumptions that any two objects in the same segment have a fixed offset
+relative to each other when the program is executed, but cannot assume the same for two objects in different segments.</p>
+
+<p>The runtime architecture also defines some additional segments,
+which do not get their contents directly from the compiled object file.
+These segments are the <ndash/> heap, stack, and shared memory segments <ndash/>
+are created at program startup time or dynamically at runtime.</p>
+
+<table>
+<caption>Standard scheme of a software module (using ELF format as an example)</caption>
+<thead><tr>
+<th>segment</th>
+<th>section</th>
+<th>type of program</th>
+<th>Description</th>
+</tr></thead>
+<tbody>
+<tr><td rowspan="22">TEXT</td><td>header</td><td>all</td><td>file header</td></tr>
+<tr><td>sectab</td><td>all</td><td>section heading table</td></tr>
+<tr><td>shstrtab</td><td>all</td><td>section names</td></tr>
+<tr><td>.dynamic</td><td>shared</td><td>Dynamic linking information Header</td></tr>
+<tr><td>.liblist</td><td>shared</td><td>A list of the names of the required spherical libraries</td></tr>
+<tr><td>.rel.dyn</td><td>shared</td><td>Relocation for DATA process data</td></tr>
+<tr><td>.rel.tdata</td><td>shared</td><td>Relocation for TDATA thread data</td></tr>
+<tr><td>.conflict</td><td>shared</td><td>Additional dynamic linking information</td></tr>
+<tr><td>.msym</td><td>shared</td><td>Additional dynamic linking symbol table</td></tr>
+<tr><td>.dynstr</td><td>shared</td><td>Name of linking external functions</td></tr>
+<tr><td>.dynsym</td><td>shared</td><td>Link table of external functions</td></tr>
+<tr><td>.hash</td><td>shared</td><td>Hash table for quick search in the export table</td></tr>
+<tr><td>.rconst</td><td>all</td><td>Read-only constants (no configuration)</td></tr>
+<tr><td>.rodata</td><td>all</td><td>Immutable global data (setting at first boot into the system)</td></tr>
+<tr><td>.lita</td><td>nonshared</td><td>Literal address pool section</td></tr>
+<tr><td>.lit</td><td>all</td><td>Literals (Literal pool section)</td></tr>
+<tr><td>.tlsinit</td><td>all</td><td>Initial copy of TDATA data</td></tr>
+<tr><td>.pdata</td><td>all</td><td>Exception procedure table</td></tr>
+<tr><td>.text</td><td>all</td><td>Main program code (not corrected during loading, it is possible to configure it at the first load in the system)</td></tr>
+<tr><td>.init</td><td>all</td><td>Section of the program initialization code</td></tr>
+<tr><td>.fini</td><td>all</td><td>Program Termination Code Section</td></tr>
+<tr><td>.comment</td><td>all</td><td>Comment Section</td></tr>
+
+<tr><td rowspan="5">TEXT but not downloadable</td><td>rsrc</td><td>all</td><td>Compiled resources</td></tr>
+<tr><td>line</td><td>all</td><td>Debug information</td></tr>
+<tr><td>debug</td><td>all</td><td>Debug information</td></tr>
+<tr><td>unwind</td><td>all</td><td>Table for stack rollback after exceptional situations</td></tr>
+<tr><td>unwind_info</td><td>all</td><td>Blocks of information to roll back the stack after exceptional situations</td></tr>
+
+<tr><td rowspan = "6">DATA</td><td>.data</td><td>all</td><td>Initialized private process data (setting at boot)</td></tr>
+<tr><td>.xdata</td><td>all</td><td>Exception scope table</td></tr>
+<tr><td>.sdata</td><td>all</td><td>Near-address small data initialized private process data (setting at boot)</td></tr>
+<tr><td>.got</td><td>shared</td><td>GOT table (Global offset table) for references to DATA variables of other modules</td></tr>
+<tr><td>.sbss</td><td>all</td><td>Small-address (small bss) uninitialized private process data</td></tr>
+<tr><td>.bss</td><td>all</td><td>Uninitialized private process data</td></tr>
+
+<tr><td rowspan = "5">TDATA</td><td>.tdata</td><td>all</td><td>Initialized thread local data (setting at boot)</td></tr>
+<tr><td>.tsdata</td><td>all</td><td>Near-address small data initialized thread local data (setting at boot)</td></tr>
+<tr><td>.tgot</td><td>shared</td><td>Module GOT table for the thread (links to TDATA variables of other modules)</td></tr>
+<tr><td>.tsbss</td><td>all</td><td>addressable small (bss) uninitialized thread local data</td></tr>
+<tr><td>.tbss</td><td>all</td><td>Uninitialized thread local data</td></tr>
+
+</tbody></table>
+
+<p>A program in the <archname/> architecture consists of a main program module,
+dynamically loaded libraries (the same program modules), stacks of the main and other threads, several heaps.
+Each program module consists of four types of sections.
+</p>
+
+<p>The TEXT segment is shared by all processes in the system and is read-only and executable.
+The addressing within the segment is relative to the instruction pointer.
+Its CODE section contains program code.
+Its RODATA section contains immutable data, placed after the CODE section.
+</p>
+
+<p>The DATA segment contains private process data. The segment is read-write.
+The addressing within the segment is relative to the instruction pointer.
+The DATA segment of the main software module, in addition to its private data,
+contains a table of base addresses for all DATA segments of dynamically loaded libraries.
+</p>
+
+<p>The TDATA segment contains private process data. The segment is read-write.
+The segment after creation is <strong>unknown</strong> distance from everyone else
+segments and is addressed relative to the selected base register <reg>tp</reg>.
+The TDATA segment of the main software module, in addition to its private data,
+contains a table of base addresses for all segments of TDATA dynamically loaded libraries.
+</p>
+
+</section>
+
+<section id = "abi_data_model">
+<title>Data model</title>
+
+<p>There are several data models for binding fundamental integer scalar data types from programming languages to architectural data types.</p>
+
+<table>
+<caption>Dimensions of fundamental types</caption>
+<thead><tr>
+<th rowspan="2" width="20%">Data model</th>
+<th colspan="4">Architectural types</th>
+</tr><tr>
+<th width="20%">1-byte</th>
+<th width="20%">2-byte</th>
+<th width="20%">4-byte</th>
+<th width="20%">8-byte</th>
+</tr></thead>
+<tbody>
+<tr><td>ILP16</td>
+<td><type>char</type></td>
+<td><type>short int</type>, <type>int</type>, <type>long int</type>, near pointer</td>
+<td></td>
+<td></td>
+</tr>
+<tr><td>LP32</td>
+<td><type>char</type></td>
+<td><type>short int</type>, <type>int</type>, near pointer</td>
+<td><type>long int</type>, far pointer</td>
+<td></td>
+</tr>
+<tr><td>ILP32</td>
+<td><type>char</type></td>
+<td><type>short int</type></td>
+<td><type>int</type>, <type>long int</type>, pointer</td>
+<td><type>long long int</type></td>
+</tr>
+<tr><td>LLP64</td>
+<td><type>char</type></td>
+<td><type>short int</type></td>
+<td><type>int</type>, <type>long int</type></td>
+<td><type>long long int</type>, pointer</td>
+</tr>
+<tr><td>LP64</td>
+<td><type>char</type></td>
+<td><type>short int</type></td>
+<td><type>int</type></td>
+<td><type>long int</type>, <type>long long int</type>, pointer</td>
+</tr>
+<tr><td>ILP64</td>
+<td><type>char</type></td>
+<td><type>short int</type></td>
+<td><type>wchar_t</type></td>
+<td><type>int</type>, <type>long int</type>, <type>long long int</type>, pointer</td>
+</tr>
+</tbody>
+</table>
+
+<p>The ILP16 variant was used by very ancient 16-bit systems, LP32 uses MS DOS,
+ILP32 use all 32-bit systems, LLP64 chose Microsoft for Windows-64,
+LP64 is selected for Linux-64 and most other 64-bit Unix systems, ILP64 is used in some versions of Unix systems.
+</p>
+
+<p>The choice between LLP64, LP64, and ILP64 is determined by different criteria.
+If you need support (without recompiling) an existing array of 32-bit software when migrating to 64-bit systems, then LLP64 is the best choice.
+The disadvantage of <ndash/> alteration for 64 bits requires a deep modernization of the program.
+If you want the existing code array to take advantage of 64-bit addressing with minimal code rework, then ILP64 is a good fit.
+The disadvantage of a <ndash/> superficial code upgrade leads to memory overrun where 64 bits are not needed.
+If you follow a balanced approach between the complexity of converting to 64-bit systems and the need to support existing 32-bit programs, then choose LP64.
+ILP64 was chosen for <archname/>, with the addition of the new fundamental type <type>long char</type> to describe four-byte numbers (<type>wchar_t</type>).
+</p>
+
+<table>
+<caption>Binding to fundamental types</caption>
+<thead>
+<tr>
+<th>Data Type</th>
+<th>Size and alignment</th>
+<th>Machine Type</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>signed char</td><td>1 (1)</td><td>signed byte</td></tr>
+<tr><td>unsigned char</td><td>1 (1)</td><td>unsigned byte</td></tr>
+<tr><td>char</td><td>1 (1)</td><td>byte, the sign depends on the compiler</td></tr>
+<tr><td>bool</td><td>1 (1)</td><td>unsigned byte, 0 or 1</td></tr>
+<tr><td>[signed] short int</td><td>2 (2)</td><td>signed 2-byte</td></tr>
+<tr><td>unsigned short int</td><td>2 (2)</td><td>unsigned 2-byte</td></tr>
+<tr><td>[signed] long char</td><td>4 (4)</td><td>signed 4-byte</td></tr>
+<tr><td>unsigned long char</td><td>4 (4)</td><td>unsigned 4-byte</td></tr>
+<tr><td>enum</td><td>1,2,4,8</td><td>depends on the range of values   </td></tr>
+<tr><td>[signed] int</td><td>8 (8)</td><td>signed 8-byte</td></tr>
+<tr><td>unsigned int</td><td>8 (8)</td><td>unsigned 8-byte</td></tr>
+<tr><td>[signed] long int</td><td>8 (8)</td><td>signed 8-byte</td></tr>
+<tr><td>unsigned long int</td><td>8 (8)</td><td>unsigned 8-byte</td></tr>
+<tr><td>[signed] long long int</td><td>8 (8)</td><td>signed 8-byte</td></tr>
+<tr><td>unsigned long long int</td><td>8 (8)</td><td>unsigned 8-byte</td></tr>
+<tr><td>data pointer: type *</td><td>8 (8)</td><td>unsigned 8-byte</td></tr>
+<tr><td>function pointer: type (*) ()</td><td>8 (8)</td><td>unsigned 8-byte</td></tr>
+<tr><td>float</td><td>4 (4)</td><td>IEEE single</td></tr>
+<tr><td>double</td><td>8 (8)</td><td>IEEE double</td></tr>
+<tr><td>long double</td><td>16 (16)</td><td>IEEE quadruple</td></tr>
+</tbody>
+</table>
+
+<p>Aggregate data types (structures <ndash/> <type>struct</type>, <type>class</type> <ndash/> and arrays)
+and unions (<type>union</type>) are aligned with their most strictly aligned component.
+The size of any object, including aggregates and associations, is always a multiple of the alignment of the object.
+An array uses the same alignment as its elements.
+Structure and join objects may require inserts to meet size and alignment restrictions.
+The content of any padding is undefined.
+</p>
+
+<ul>
+<li>The structure or union as a whole must be aligned on the same byte boundary as its most strictly aligned field.</li>
+<li>Each field is assigned the smallest available offset with a suitable alignment.
+This may require internal inserts between the fields, depending on the previous field.</li>
+<li>If necessary, the size of the structure must be increased to be a multiple of the alignment.
+This may require end insertion, depending on the last member.</li>
+</ul>
+
+<p>C structures and associations can contain bit fields that define integer objects with a specified number of bits.
+The table shows the permissible values   of bit fields for each base type, and the corresponding limits.
+</p>
+
+<table>
+<caption>Binding of bit fields to fundamental types</caption>
+<thead><tr>
+<th>Data Type</th>
+<th>Field Width W</th>
+<th>Limits</th></tr>
+</thead>
+<tbody>
+<tr><td>char, signed char</td><td>1-8</td><td rowspan="6"> <minus/> 2 <sup>W<minus/>1</sup> <hellip/> 2 <sup>W<minus/>1</sup> <minus/> 1</td></tr>
+<tr><td>long char, signed long char</td><td>1-16</td></tr>
+<tr><td>short, signed short, enum</td><td>1-32</td></tr>
+<tr><td>int, signed int</td><td>1-64</td></tr>
+<tr><td>long, signed long</td><td>1-64</td></tr>
+<tr><td>long long, signed long long</td><td>1-64</td></tr>
+<tr><td>unsigned char</td><td>1-8</td> <td rowspan="6"> 0 <hellip/> 2<sup>W</sup> <minus/> 1</td></tr>
+<tr><td>unsigned long char</td><td>1-16</td></tr>
+<tr><td>unsigned short</td><td>1-32</td></tr>
+<tr><td>unsigned int</td><td>1-64</td></tr>
+<tr><td>unsigned long</td><td>1-64</td></tr>
+<tr><td>unsigned long long</td><td>1-64</td></tr>
+</tbody>
+</table>
+
+<p>Bit fields whose base type (with the exception of enumerated types) is represented without an explicit <type> signed</type> or <type> unsigned</type> definition,
+considered as unsigned (fixme).
+Bit fields of enumerated types are considered to be signed, unless an unsigned type is needed to represent all constants from the enumeration type.
+Bit fields obey the same size and alignment rules as other fields in a structure or union, with the following additions:
+</p>
+
+<ul>
+<li>Bit fields are placed from right to left (from the least significant bit to the most significant) for little-endian,
+and from left to right (from the most significant bit to the least significant) for big-endian.</li>
+<li>The bit field must completely fit in the machine type corresponding to its declared type.
+For example, a <type>short</type> bitfield should never cross the <type>mem4</type> border.</li>
+<li>Bit fields can share a machine-type cell with other fields of <type>struct</type> / <type>union</type>,
+including other bit fields and even non-bit fields (<type>enum</type> types?).
+Of course, each field of the structure occupies its own part of the machine type.</li>
+<li>Unnamed bitfield types do not affect structure alignment or union.
+Unnamed zero-length bit fields force alignment of subsequent fields to a border corresponding to the size of the bit field.</li>
+</ul>
+
+<p>Bit fields like <type>int</type> and <type>long</type> (<type>signed</type> and <type>unsigned</type>) are usually packed denser,
+the smaller the base types (less restrictions on crossing the boundaries of the base type).
+You can use bit fields and types <type>char</type> and <type>short</type>,
+to force placement within those types, but <type>int</type> is generally more efficient.
+</p>
+
+</section>
+
+<section id = "abi_reserved_registers">
+<title>Reserved registers</title>
+
+<p>Although all 128 general-purpose registers are physically equal
+(except for the difference between global and rotate registers, and some other differences)
+the software binary interface reserves several general purpose registers for its (special) purposes.
+Unlike real special purpose registers, these registers are <em>special</em> only in the sense that
+that the program is obliged to use them only in an authorized way.
+The choice of numbers for these registers is (almost) arbitrary and not part of the architecture.
+</p>
+
+<p>The initial contents of the registers <reg>sp</reg>, <reg>tp</reg>
+set by the loader at the start of the process / thread and should be changed by the program only according to ABI rules.
+The contents of the reg <reg>sp</reg> should always correctly display the state of the stack
+and be aligned with the strictest boundary for the base types <ndash/> 16 bytes.
+Register <reg>r0</reg> must contain the return info when the procedure is called.
+</p>
+
+<table>
+<caption>Dedicated General Purpose Registers</caption>
+<thead><tr>
+<th>Register</th>
+<th>Content</th>
+</tr>
+</thead><tbody>
+<tr>
+<td><reg>r0</reg></td><td><regname>link pointer</regname> <ndash/> return address from the procedure.
+The called procedure receives the return address in the first register of the new frame of the local registers, register <reg>r0</reg>.</td>
+</tr>
+<tr>
+<td><reg>sp</reg></td><td><regname>stack pointer</regname> <ndash/> pointer to the top of the stack.</td>
+</tr>
+<tr>
+<td><reg>tp</reg></td><td> <regname>thread pointer</regname> <ndash/>
+pointer to the beginning of thread local data for the main (static) module.
+Used by load/store instructions and <mim>lda_n</mim> only inside the main module.</td>
+</tr>
+</tbody>
+</table>
+
+</section>
+
+<section id="pic">
+<title>Position independent code and GOT</title>
+
+<p>The code segment must not contain relocations (PIC).
+To create a PIC, the compiler must:
+</p>
+
+<ol>
+<li>Use for all internal branches the <reg>ip</reg>-relative branches only rather than branches to absolute addresses.</li>
+
+<li>Similarly, do not use absolute references to static data, instead use addressing with an offset relative to some standard base register.
+If the code and data segments are guaranteed to be located at a known distance from each other (MAS),
+then the function from the shared library can calculate the corresponding base address using <reg>ip</reg>.
+Otherwise (SAS), the caller must set the base register as part of the call sequence.
+</li>
+
+<li>Use an additional level of indirection for each control transfer outside the monolithic PIC segment,
+and for each call to static memory outside the corresponding data segment.
+Indirectness allows you to save non-PIC target addresses in the DATA segment private for each instance of the program.
+</li>
+</ol>
+
+<p>The position-independent code cannot contain absolute addresses directly in the instruction code,
+but uses for addressing data and an offset code relative to the instruction counter.
+A data-binding-independent code uses for code addressing the offset relative to the instruction counter,
+but cannot address private data in the same way, but only relative to to the base registers.
+</p>
+
+<p>The Global Offset Table (GOT) stores absolute addresses and is part of the process's private data,
+which makes addresses accessible without violating positional independence and sharing of program code.
+Each program module refers to its GOT table in a position-independent manner and extracts absolute addresses from it.
+So position-independent links are converted to absolute positions.
+</p>
+
+<p>Initially, the GOT contains information about relocation points (annotations for the dynamic linker).
+After the system creates memory segments for the loaded object file,
+the dynamic linker processes relocation points, some of which will refer to the GOT.
+The dynamic linker determines the symbolic names associated with them, calculates their absolute addresses, and sets the appropriate values   in the corresponding GOT entries.
+Although the absolute addresses are unknown to the link editor when it builds the object file,
+but the dynamic linker knows the addresses of all memory segments and can therefore calculate the absolute addresses of the objects contained therein.
+</p>
+
+<p>If the program requires direct access to the absolute address of the object, this object will have an entry in the GOT.
+Since the executable file and each shared object have separate GOTs, the address of a symbolic name may appear in several tables.
+The dynamic linker processes all GOT relocations before transferring control to the process code,
+which guarantees the availability of absolute addresses at runtime.
+</p>
+
+<p>Thanks to GOT, the system can select different addresses of memory segments for one shared object in different programs.
+She can even choose different library addresses for different executions of the same program.
+At the same time, memory segments do not change addresses after the process image is installed.
+As long as the process exists, its segments are located at fixed addresses.
+</p>
+
+<p>Short summary: if the program has several data segments (private or shared),
+then they are accessed indirectly through the GOT address table.
+The GOT table is part of one selected <ndash/> DATA private data segment.
+However, objects in the DATA segment itself can be addressed indirectly through the GOT table in DATA
+(for example, if the distance of the relative displacement is too large for implementation in the instruction).
+</p>
+
+</section>
+
+<section id = "abi_relocation">
+<title>Program relocation</title>
+
+<p>The relocation or unresolved link is a place in the code or static data,
+reserved by the compiler to substitute the later calculated value <ndash/> at the stage of compilation or even later at the stage of loading,
+or not containing data (field of zero bits), or containing incomplete information
+(an additional term may be stored to calculate the allowed link).
+Usually, a direct value is stored in the place of relocation, which is the absolute address or relative offset relative to the base address or counter of the bundles,
+and used when accessing memory or address calculations.</p>
+
+<p>There are as many <em>types of relocation</em> as there are different ways in the processor architecture of the processor to put an immediate value
+in the code of the machine instruction (without taking into account the constants for the description of shifts and some other constants,
+too short and therefore not used for relocation) or in the data object.
+Link Editor uses these unfilled (under-calculated) line items.
+at the assembly stage for embedding in the previously compiled code its information about the links in the program between individual segments, sections,
+object modules and dynamically linked executable modules.</p>
+
+<p>The compiler creates (for later use by the linker) a table of relocation (program moving) records as part of the object file.
+Moving records describe how the linker (or later the loader) should modify the instruction or data field.</p>
+
+<p>The following distinct <em>data relocation</em> types are defined for data sections in the <archname/> architecture:</p>
+
+<ol>
+<li><relocation>RELOC_WORD</relocation>. A 4-byte boundary aligned 32-bit field in any data section.
+</li>
+<li><relocation>RELOC_DWORD</relocation>. An 8-byte boundary aligned 64-bit field in any data section.
+</li>
+</ol>
+
+<p>For code in the <archname/> architecture (according to the format of single-slot instructions and their extensions to the second slot)
+The following distinct <em>code relocation</em> types are defined:</p>
+
+<ol>
+<li><relocation>RELOC_LD_IMM</relocation>.
+A 28-bit signed immediate (or 64 bits for a long instruction) is embedded in the <mim>ld_imm</mim> instruction.
+
+<slot_table>
+<slotbits/><slot>
+    <opc>opcode</opc>
+    <ignored size="7">other</ignored>
+    <jump>simm28</jump>
+</slot></slot_table>
+
+<slot_table>
+<extslotbits/><slot>
+    <reserved size = "6">0</reserved>
+    <imm size = "36">simm64 (28+36)</imm>
+</slot></slot_table></li>
+
+<li><relocation>RELOC_JUMP</relocation>.
+A constant with a sign length of 28 bits (or 60 bits for a long instruction) for
+<reg>ip</reg>-relative offset in the program segment <var>text</var> (or <var>rodata</var>)
+embedded in <mim>call</mim>, <mim>jmp</mim> or <mim>lda_r</mim> instructions
+(distance <plusmn/>2 GiB or <plusmn/>8 EiB for long instructions).
+
+<slot_table>
+<slotbits/><slot>
+    <opc>opcode</opc>
+    <ignored size = "7">other</ignored>
+    <jump>simm28x16</jump>
+</slot></slot_table>
+
+<slot_table>
+<extslotbits/><slot>
+    <reserved size="10">0</reserved>
+    <imm size="32">simm60x16 (28+32)</imm>
+</slot></slot_table></li>
+
+<li><relocation>RELOC_BRANCH</relocation>.
+A signed 17-bit immediate (or 30-bit for a long instruction) for offset in the code segment
+embedded in an instruction like <em>compare-and-branch</em> as a branch distance
+(distance <formula><plusmn/>1</formula> MiB or <formula><plusmn/>8</formula> GiB for a long instruction).
+
+<slot_table>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <ignored size = "18">other</ignored>
+    <branch>simm17x16</branch>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/><slot>
+    <ignored size="29">other</ignored>
+    <imm size="13">simm30x16 (17+13)</imm>
+</slot></slot_table></li>
+
+<li><relocation>RELOC_BIN_SIMM</relocation>.
+A constant with a 21-bit sign (or 63 bits for a long instruction) for
+instructions <mim>ld_i8</mim>, <mim>ld_u8</mim>, <mim>add_imm_i64</mim>, <mim>subr_imm_i64</mim> and others.
+
+<slot_table>
+<slotbits/><slot>
+    <opc>opcode</opc>
+    <ignored size="14">other</ignored>
+    <binimm>simm21</binimm>
+</slot></slot_table>
+
+<slot_table>
+<extslotbits/><slot>
+    <imm size="42">simm63 (21+42)</imm>
+</slot></slot_table></li>
+
+<li><relocation>RELOC_BIN_UIMM</relocation>.
+An unsigned constant of 21 bits (or 63 bits for a long instruction) for instructions <mim>max_imm_u32</mim>, <mim>min_imm_u64</mim>.
+
+<slot_table>
+<slotbits/><slot>
+    <opc>opcode</opc>
+    <ignored size="14">other</ignored>
+    <binimm>uimm21</binimm>
+</slot></slot_table>
+
+<slot_table>
+<extslotbits/><slot>
+    <imm size="42">uimm63 (21+42)</imm>
+</slot></slot_table></li>
+
+<li><relocation>RELOC_BRANCH_SIMM</relocation>.
+A 11-bit signed constant (or 40-bit for a long instruction) is embedded in an instruction like <em>compare-with-constant-and-jump</em> as a constant to be compared.
+
+<slot_table>
+<slotbits/><slot>
+    <opc>opcode</opc>
+    <ignored size="7">other</ignored>
+    <cbimm>simm11</cbimm>
+    <ignored size="17">other</ignored>
+</slot></slot_table>
+
+<slot_table>
+<extslotbits/><slot>
+    <imm size="29">simm40 (11+29)</imm>
+    <ignored size="13">other</ignored>
+</slot></slot_table></li>
+
+<li><relocation>RELOC_BRANCH_UIMM</relocation>.
+A 11-bit unsigned constant (or 40-bit for a long instruction)
+embedded in an instruction like <em>constant-compare-and-jump</em>
+as a constant to be compared.
+
+<slot_table>
+<slotbits/><slot>
+    <opc>opcode</opc>
+    <ignored size="7">other</ignored>
+    <cbimm>uimm11</cbimm>
+    <ignored size="17">other</ignored>
+</slot></slot_table>
+
+<slot_table>
+<extslotbits/><slot>
+    <imm size="29">uimm40 (11+29)</imm>
+    <ignored size="13">other</ignored>
+</slot></slot_table></li>
+
+</ol>
+
+<p>Instruction-dependent basic relocation types further differ
+in different ways of forming the implemented constant and conditions checked in this case.
+The set of these methods depends on the program model used and additional features of the instruction set architecture.
+</p>
+
+<p>For example, the Intel X86 architecture has only one basic type of code relocation (in 32-bit mode) <ndash/> the 4-byte field as part of the instruction,
+for which there are only two ways of forming the constant <ndash/>
+just an absolute address for the data or <reg>ip</reg>-relative address for the code.
+</p>
+
+<p>The <archname/> system is oriented towards a position-independent code.
+In addition, the special instructions <mim>lda_n</mim>, <mim>lda_r</mim>,
+designed to optimize relative addressing, require special support from the linker.
+Hence a large selection of possible ways of referencing an object of code or data
+depending on the location of the object, the remoteness of the object from the base of relative addressing,
+the presence of indirect links through the GOT table, the number of repeated calls to the same object or objects near it.
+</p>
+
+<p><def>The method of referencing an object in the place of relocation</def>
+(a method of converting a symbol name into an embedded constant) is usually set in assembler
+as a call to a special function when calculating the constant parameter of an instruction, or as a suffix added to the name of an object.
+It should be understood that this is actually not a function call, but a mark
+for the linker (hello to him from the compiler) <ndash/> exactly how to construct a relocation constant from the name of the object.
+The set of relocation methods used depends on the architecture of machine instructions
+(if, for example, long constants are synthesized from parts and divided between
+several instructions, or several typical sizes of programs with different addressing methods are provided)
+and from the selected program model (absolute code for the system kernel or user program).
+The set of <archname/> assembler functions below is generally traditional for the 64-bit PIC program model
+and is found (with some variations) in all 64-bit architectures: DEC Alpha, SGI MIPS, IBM PowerPC, Sun UltraSPARC, Intel Itanium.
+</p>
+
+<table>
+<caption>Assembler functions to set the relocation method</caption>
+<thead>
+<tr>
+<th>Group (scope)</th>
+<th>Function (Method)</th>
+<th>How, at runtime, an offset is obtained from the offset</th>
+</tr>
+</thead>
+<tbody>
+<tr><td rowspan="3">Absolute addresses (for data only)</td><td>symbol</td><td>symbol</td></tr>
+<tr><td>expr</td><td>symbol+offset</td></tr>
+<tr><td>got(symbol)</td><td>mem8[offsettee</td></tr>
+<tr><td rowspan="2">Private process data</td><td>pcrel (expr)</td><td>ip + offset</td></tr>
+<tr><td>ltoff(expr)</td><td>mem8[ip+offsettee</td></tr>
+<tr><td rowspan="2">thread local data (main program)</td><td>tprel (expr)</td><td>tp + offset</td></tr>
+<tr><td>@tprel@got(expr)</td><td>mem8 [tp + offset]</td></tr>
+<tr><td>Private flow data (dynamic modules)</td>
+<td>dtprel(expr)</td><td>mid = mem4 [gp + mid_offset] <br/> local_tp = mem8 [dtv + mid] <br/> ea = local_tp + offset</td></tr >
+<tr> <td rowspan="2"> Support for <mim>lda_n</mim> instructions for all data types</td> <td> data_hi (expr)</td> <td> base + (offset <lshift/> 15)</td></tr>
+<tr><td>data_lo(expr)</td><td>base+offset</td></tr>
+<tr> <td rowspan="2"> Support for the <mim>lda_r</mim> instruction for all data types</td>
+<td>text_hi(expr)</td><td>ip+16<times/>offset</td></tr>
+<tr><td>text_lo(expr)</td><td>base+offset</td></tr>
+<tr> <td rowspan="2"> Miscellaneous Functions</td>
+<td>segrel(expr)</td><td>segbase+offset</td></tr>
+<tr><td>secrel(expr)</td><td>secbase+offset</td></tr>
+</tbody></table>
+
+<p>The mere mention of the <var>symbol</var> symbol means the absolute address of the <var>symbol</var> object.
+The expression <var>expr</var> means a formula from the absolute address of the object and constant offset: <var>symbol + offset</var>.
+Absolute addresses at runtime are not calculated and used as is.
+Absolute addresses can be embedded in the instruction code only if it is an absolute program (system core, drivers).
+</p>
+
+<p>Function <function>got</function> (<var>symbol</var>) (global offset table)
+means the absolute address in the GOT table for indirect access to the <var>symbol</var> object.
+At the same time, this is a request to create a GOT record for the <var>symbol</var> object, if there is no such record yet.
+</p>
+
+<p>The <function>got</function> function cannot be used by itself, but only with <function>pcrel</function> or <function>tprel</function>,
+e.g. like <function>@ pcrel @ got</function> (<var>expr</var>),
+since the GOT table is divided in two (depending on the locality of the link objects <ndash/> process or thread)
+and is part of the DATA and TDATA segments, and therefore should be addressed accordingly.
+</p>
+
+<p>The function <function>pcrel</function> (<var>expr</var>) (program counter relative) means the offset <var>offset</var> relative to the instruction counter.
+The absolute address of the object is computed at run time as <formula><reg>ip</reg>+<var>offset</var></formula>.
+Used to access the code and / or static data of the same module.
+</p>
+
+<p>Function <function>tprel</function> (<var>expr</var>) (thread pointer relative)
+means offset <var>offset</var> relative to the base register <reg>tp</reg> when addressing the thread private data.
+The absolute address of the object is calculated at runtime as <var><reg>tp</reg> + offset</var>.
+The <var>expr</var> object must belong to the TDATA segment of the main module.
+</p>
+
+<p>Function <var>dtprel (expr)</var> (dynamic thread pointer relative) means the offset <var>offset</var> of the object <var>expr</var>
+regarding the beginning of the thread private data of this module <var>dtv [ModID]</var>
+(taken from the array <reg>dtv</reg> addressed by the register <reg>dtv</reg>).
+The absolute address of the object is calculated at run time as <formula><var>dtv[ModID†+offset</var></formula>.
+The <var>expr</var> object must belong to the TDATA segment of the <var>ModID</var> module itself.
+</p>
+
+<p>The function <var><function>data_lo</function>(offset)</var> describes the lower 15-bit part of the offset
+<var>offset</var>: <var><function>data_lo</function>(offset) = sign_extend(offset, 15)</var>.
+The offset <var>offset</var> is usually calculated for position-independent programs as <var><function>gprel</function>(expr)</var>
+or <var><function>tprel</function>(expr)</var> depending on the location of the <var>expr</var> object.
+
+Used for addressing relative to the intermediate base address, calculated earlier using the <mim>lda_n</mim> instructions.
+
+This intermediate address can be reused for calls.
+to an object or its nearest neighbors using short read / write instructions
+(with offsets of minimum length <ndash/> not more than 16 bits per offset).</p>
+
+<p>The <function>data_hi</function>(<param>offset</param>) function describes the older part of the <param>offset</param> offset:
+<var><function>data_hi</function>(offset) = (offset- <function>sign_extend</function>(offset, 15)) <rshift/> 15</var>.
+Used by <mim>lda_n</mim> instructions to calculate an intermediate base address before
+using short read / write instructions.
+These instructions calculate the absolute address no further than 16 kilobytes from the relative addressable object <var>expr</var>.
+Long (over 32 kilobytes) offset <var>offset</var> relative to the base register
+split into two parts <var>offset_hi</var> and <var>offset_lo</var>, so that
+<var>offset = (offset_hi <lshift/> 15) + offset_lo</var>, so the younger part is <var>offset_lo</var>
+always placed in a 16-bit constant with a sign, and the older part <var>offset_hi</var>
+will be the argument of the <mim>lda_n</mim> instructions for calculating the intermediate base address.
+</p>
+
+<p>Objects in the TEXT segment (RODATA section with read-only data)
+in a position-independent program, it should be addressed relative to the <reg>ip</reg> instruction counter.
+However, with the <mim>lda_r</mim> instruction, you can get only the starting address of the 16-byte bundle,
+that is, the address closest to the target is 16 bytes aligned.
+The following instructions for accessing the memory should take into account the short offset (from 0 to 15 bytes long) from this starting address to the object.
+</p>
+
+<p>Function <function>text_hi</function> (<param>expr</param>)
+means that part of the <reg>ip</reg>-relative offset in the segment
+<segment>text</segment> used by the <mim>lda_r</mim> instruction
+to calculate the absolute address closest to the object, aligned on a 16-byte boundary.
+The <mim>lda_r</mim> instruction computes <reg>ip</reg>+16<times/> <function>text_hi</function>(symbol),
+where <var><function>text_hi</function>(symbol)</var> is calculated by assembler as
+<var>((symbol<minus/> <function>text_lo</function>(symbol)) <rshift/> 4)</var>.
+The paired function <var><function>text_lo</function>(symbol)</var> describes the younger part
+<reg>ip</reg> -relative offset as <var><function>sign_extend</function>(symbol, 4)</var>,
+that is, the difference between the address of the object and the nearest 16-byte boundary.
+This value is used for direct addressing in load/store instructions.
+after calculating the intermediate address of the 16-byte bundle using the <mim>lda_r</mim> instruction.
+</p>
+
+<p>Function <function>segrel</function> (<var>expr</var>) (segment relative) describes the offset of the object <var>expr</var>
+relative to the start of the segment. This relocation is for data structures,
+which are placed in read-only shared segments but must contain pointers.
+In this case, the relocation point and the relocation object must be located in one segment.
+Applications using such relative pointers should be aware of their relativity and add the base address of the segment to them at runtime.
+</p>
+
+<p>Function <function>secrel</function> (<var>expr</var>)
+(section relative) describes the offset of the <var>expr</var> object relative to the beginning of the section.
+This relocation is for links from one section to another within the same segment.
+</p>
+
+<p>As a result, combining the type of relocation and the method of linking to an object, we get a complete set of all valid types of unresolved links,
+which the linker should be able to handle (minus some never-seen combinations).
+</p>
+
+<table>
+<caption> Types of Relocation Entries</caption>
+<thead><tr>
+<th>Group</th>
+<th>Name</th>
+<th>Relocation Method</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td rowspan="2"> absolute addressing (data only)</td>
+<td>R_ADDR_WORD</td><td>sym+addend</td></tr> <tr>
+<td>R_ADDR_DWORD</td><td>sym+addend</td></tr> <tr>
+
+<td rowspan="6"> relative to <reg>ip</reg></td>
+<td>R_PCREL_JUMP</td> <td> pcrel (sym + addend), jump/call</td></tr> <tr>
+<td>R_PCREL_JUMP_EXT</td> <td> pcrel (sym + addend), jump/call</td></tr> <tr>
+<td>R_PCREL_BRANCH</td> <td> pcrel (sym + addend), compare-and-branch</td></tr> <tr>
+<td>R_PCREL_BRANCH_EXT</td> <td> pcrel (sym + addend), compare-and-branch</td></tr> <tr>
+<td>R_PCREL_LDA_R</td> <td> text_hi (pcrel (sym + addend), lda_r</td></tr> <tr>
+<td>R_PCREL_LDA_R_EXT</td> <td> text_hi (pcrel (sym + addend), lda_r.l</td></tr> <tr>
+
+<td rowspan="2"> section-base relative</td>
+<td>R_SECREL_WORD</td> <td> sym - SC + addend, .mem4</td></tr> <tr>
+<td>R_SECREL_DWORD</td> <td> sym - SC + addend, .mem8</td></tr> <tr>
+
+<td rowspan="2"> segment-base relative</td>
+<td>R_SEGREL_WORD</td> <td> sym - SB + addend, .mem4</td></tr> <tr>
+<td>R_SEGREL_DWORD</td> <td> sym - SB + addend, .mem8</td></tr> <tr>
+
+<td rowspan="4"> base-relative</td>
+<td>R_BASEREL_LDI</td> <td> L (sym - base + addend)</td></tr> <tr>
+<td>R_BASEREL_LDI_EXT</td> <td> L (sym - base + addend)</td></tr> <tr>
+<td>R_BASEREL_BINIMM</td> <td> sym - base + addend</td></tr> <tr>
+<td>R_BASEREL_BINIMM_EXT</td> <td> sym - base + addend</td></tr> <tr>
+
+<td rowspan="5"> dynamic layout?</td>
+<td>R_SETBASE</td> <td> Set base</td></tr> <tr>
+<td>R_SEGBASE</td> <td> Set SB</td></tr> <tr>
+<td>R_COPY</td> <td> dyn reloc, data copy</td></tr> <tr>
+<td>R_IPLT</td> <td> dyn reloc, imported PLT</td></tr> <tr>
+<td>R_EPLT</td> <td> dyn reloc, exported PLT</td></tr>
+
+<tr>
+<td rowspan="9"> <reg>tp</reg> -relative</td>
+<td>R_TPREL_WORD</td> <td> tprel (sym + addend), .mem4</td></tr>
+<tr><td>R_TPREL_DWORD</td> <td> tprel (sym + addend), .mem8</td></tr>
+<tr><td>R_TPREL_LDI</td> <td> tprel (sym + addend), LDI</td></tr>
+<tr><td>R_TPREL_LDI_LONG</td> <td> tprel (sym + addend), LDI</td></tr>
+<tr><td>R_TPREL_HI_BINIMM</td><td>data_hi(tprel(sym+addend))</td></tr>
+<tr><td>R_TPREL_HI_BINIMM_EXT</td><td>data_hi(tprel(sym+addend))</td></tr>
+<tr><td>R_TPREL_LO_BINIMM</td><td>data_lo(tprel(sym+addend))</td></tr>
+<tr><td>R_TPREL_BINIMM</td> <td> tprel (sym + addend), load/store</td></tr>
+<tr><td>R_TPREL_BINIMM_EXT</td> <td> tprel (sym + addend), load/store</td></tr>
+
+</tbody>
+</table>
+
+<p>The assembler syntax must be consistent with the set of types of unresolved references that the linker can handle.
+</p>
+
+<p>For example, almost none of the assemblers/compilers can take into account and handle the subtraction of two addresses from the same segment as a immediate, although it is.
+At the compilation stage, this subtraction is still unknown, but at the linking stage, when they can be defined,
+the corresponding types of relocation are not provided in order to pose a similar task to the linker.
+As a result, the compiler is forced to take these calculations to the stage of loading or executing the program.
+</p>
+
+<p>The most <quote>advanced</quote> compilation/linking systems support the ability to postpone to the link stage the unresolved links of arbitrary complexity,
+if they would be reduced to a constant result.
+</p>
+
+</section>
+
+<section id = "abi_tls">
+<title>Thread local storage</title>
+
+<p>Managing thread local storage (TLS) which is private for a thread isn't as simple as per-process private data.
+TLS sections cannot simply be loaded from a file into memory and made available to the program.
+Instead, multiple copies should be created (one for each thread)
+and all of them must be initialized according to the primary image of the TLS section in the program file.
+The creation of new threads can continue dynamically throughout the entire period of the program.</p>
+
+<p>TLS support should avoid creating TLS data blocks if possible,
+for example, using deferred memory allocation on the first request (first attempt to access TLS).
+Most threads will probably never use private data of all dynamic modules at once.
+Unfortunately, the mechanism of deferred memory allocation requires at least
+introducing a separate functional level (layer) to control access to TLS objects, which may be too inefficient.</p>
+
+<p>The problem is the very process of compiling TLS data and accessing it when there are many copies of it.
+The TLS variable is characterized by two parameters: a reference to the TLS block of a particular dynamic module and an offset within this block.
+To get the address of a variable, you need to somehow map these two parameters to the virtual address space at runtime.</p>
+
+<p>The traditional TLS mapping approach is as follows.
+One of the general registers (<reg>tp</reg> or thread pointer)
+permanently stores the address of the static TLS block of data associated with the current thread.
+The data block is conditionally divided into two parts:
+a statically allocated single TLS data block of the main module (exe file) and the <reg>dtv</reg> vector (dynamic thread vector),
+storing addresses of dynamically (possibly lazy) dedicated TLS blocks for dynamically loaded dynamic modules.
+If the dynamic module is loaded into the program, then it is allocated one slot (a place to store the address) in the <reg>dtv</reg> vector.
+</p>
+
+<p>Knowing your <var>mid</var> number, the dynamic module can find the beginning of its TLS data
+for the current thread in <var>dtv[mid]</var> or <formula>MEM (<reg>tp</reg> + mid + offset)</formula>,
+where <var>offset</var> is the position of <reg>dtv</reg> relative to <reg>tp</reg> (usually 0).
+Next, you can find the address of the variable as <formula><reg>dtv</reg>[mid] + var_offset</formula>,
+where <var>var_offset</var> is the position of the variable relative to the dynamic TLS block.
+</p>
+
+<p><def>General dynamic model</def> TLS (general dynamic) is the most universal.
+The code compiled for it can be used anytime, anywhere, and it can access TLS variables defined anywhere.
+For example, from one dynamic module, access the TLS variable in another dynamic module.
+By default, the compiler generates code for this model, and can use more limited TLS models only when explicitly allowed by the compiler options.
+</p>
+
+<p>For the code of this model for the TLS variable are unknown at the build stage (and especially compilation)
+neither the module number (slot) in which it is located, nor the offset inside the TLS block of this module.
+Module number (ModuleID) and offset in the TLS block are determined only at runtime
+(taken from the GOT table where the loader writes them) and passed to a special function
+<function>__tls_get_addr</function> (the standard name for many Unix),
+which checks for the existence of a TLS block, creates if it is not, and returns the address of the variable for the current thread.
+The implementation of this function is also a problem requiring the assistance of the OS.
+</p>
+
+<code>
+addr1 = __tls_get_addr (GOT [ModuleID], GOT [offset1])
+addr2 = __tls_get_addr (GOT [ModuleID], GOT [offset2])
+</code>
+
+<p>The code size and runtime are such that it is best to avoid this model altogether.
+If the module number and / or offset are known, optimization or simplification is possible.</p>
+
+<p><def>Local dynamic model</def> TLS (local dynamic) is an optimization of the general dynamic model.
+The compiler uses this model if it knows that TLS variables are used in the same module in which they are defined.
+Now the variable offsets (at least in the TLS block of this module itself) will be known at the linking stage.
+The module number is unknown. Still need to call the function <function>__tls_get_addr</function>,
+but now it can be called only once (with offset 0) to determine the start address of the <quote>block of its</quote> TLS variables.
+The address of individual variables is simply determined by adding a known offset.
+</p>
+
+<code>
+addr0 = __tls_get_addr (GOT [ModuleID], 0)
+addr1 = addr0 + offset1
+addr2 = addr0 + offset2
+</code>
+
+<p>Dynamic models using the <function> __tls_get_addr</function> function
+allow lazy allocation of memory for TLS data at the first request to the block.</p>
+
+<p><def>Static Load Model</def> TLS (initial exec) assumes
+that a certain set of dynamic modules will always be loaded together with the main program.
+Then the loader can calculate the total value of all TLS blocks of such modules and their location in a single TLS block.
+Separate TLS blocks of different modules in this single block will be located at a fixed distance from the beginning of the block,
+which the loader computes and stores in the GOT table.
+Now, to calculate the address of the TLS variable, you do not need to call the function <function> __tls_get_addr</function>,
+it's just a read from the GOT record, and you don't need to know the module number.
+Allocation of a single block occurs immediately upon the start of a new thread (without delayed lazy allocation).
+If such a model is used for a dynamic library, then it cannot be loaded dynamically, but only statically.
+Addressing occurs relative to the selected register <reg>tp</reg> with the offset known at the loading stage (taken from GOT).
+</p>
+
+<code>addr = <reg>tp</reg> + GOT [offset]</code>
+
+<p><def>Local static model</def> TLS (local exec) will be obtained if we combine the local dynamic model and the initial exec model,
+then we get the local exec model: static loading and local calls (without dynamically linked modules).
+The main module of the program (main) refers to the TLS variables defined in it.
+Addressing occurs relative to the selected register <reg>tp</reg> with the offset known at the stage of layout.
+</p>
+
+<code>addr = <reg>tp</reg> + offset</code>
+
+<p>The compiler usually (when compiling object modules separately, when creating libraries) doesn't have full information about the future program as a whole.
+The compiler is forced to make the most careful decisions about the nature of the future program.
+This usually comes down to the compiler using the most common mechanisms for addressing private data.
+For TLS, this is the general dynamic addressing model.
+</p>
+
+<p>Therefore, it is important that the linker, when compiling the finished program, can optimize and make changes to
+previously compiled object module, and replace for some variables the existing addressing method with another (optimized) one.
+To do this, at a minimum, the linker must know such places (unresolved references to TLS sections),
+and the compiler must create the addressing code so that it can be replaced by another.
+This requires the equivalence of different TLS addressing methods in terms of code size, number, type and number of registers used, etc.
+</p>
+
+<p>If the optimized version is shorter than the original, after the replacement, the program may leave empty spaces filled with dummy <mim>nop</mim> instructions.
+It happens that the optimized version is longer than the original, then the compiler must add the dummies in advance,
+to allow future linker replacement with an optimized addressing option.
+</p>
+
+</section>
+
+<comment>
+<section id="object_files">
+<title>Object file format</title>
+
+<p>Starting the development of the object file format, you should formulate a model of the executable process,
+the model of the executable program module, and the goals that we set for the link editor.
+</p>
+
+<ol>
+<li>All programs must use ip-relative code.
+This is facilitated by the fact that there is no direct addressing in the processor instruction architecture.
+</li>
+
+<li>The order of joining sections into segments should be fixed. The compiler must know
+how the link editor combines sections into segments, since only between sections from the same segment relative addressing is allowed;</li>
+
+<li>The compiler must be able to predict which segment this object belongs to,
+to know what other objects from the same segment it can address relative to this object;</li>
+
+<li>Programs in C/C++ and other high-level languages do not use non-standard sections;</li>
+
+<li>Garbage collection required (exception of unused functions from the assembled module and variables),
+for which you need to know the location, size, and alignment of all program objects;</li>
+
+<li>When using an external link and importing the name, the segment must be specified with respect to which the link occurs;</li>
+
+<li>When calculating an unresolved reference, it is possible to calculate formulas of arbitrary complexity,
+not going beyond relative addressing within a segment.</li>
+
+<li>It is necessary to optimize the code at the build stage to replace some addressing methods with others.</li>
+</ol>
+</section>
+</comment>
+
+<section id="abi_modules">
+<title>Modules and private data</title>
+
+<p>The <archname/> system is focused on code and translation table sharing.
+It should be possible to replace shared libraries without recompiling their dependent applications.
+Any software module can be used by several processes.
+There should be no difference between application code and shared library code.
+For addressing code and global data, the addressing relative to the instruction pointer is used with software reconfiguration to the conformant regions of private process/thread data.
+</p>
+
+<p>The one address range is used for mapping code sections of all program modules.
+This address range is shared by all processes and is executable only.
+For each process, another address range is allocated for static process data sections of all program modules.
+For each thread, another address range is allocated for the sections of static data of the thread in all program modules.
+All three address range types are the of the same size, a multiple of degree 2, and aligned to the same border.
+</p>
+
+<p>For each program module, the following three values ​​must be equal:
+offset from the beginning of the code range to the beginning of the code section;
+offset from the beginning of the private data range of the DATA process to the beginning of the DATA section;
+offset from the beginning of the private data range of the TDATA stream to the beginning of the TDATA section.
+Knowing only <reg>ip</reg> and the base address of the private range (stored in dedicated registers <reg>gp</reg> and <reg>tp</reg> for DATA and TDATA, respectively),
+you can always calculate the location of positionally independent private data using the formula:</p>
+
+<p> base = <reg> gp </reg> | <reg> ip </reg> {<regfield> gtssize </regfield> <minus /> 1: 0} </p>
+<p> or indirectly </p>
+<p> base = mem [<reg> gp </reg> + <reg> ip </reg> {<regfield>gtssize</regfield> <minus/> 1: 0} <rshift/> <regfield>tgsize</regfield>]
+</p>
+
+
+<p>Private static data can easily be found by library code.
+It is not necessary to explicitly pass the correct address of the data segment of the module of the new <reg>gp</reg> (global pointer)
+when called through the border of a module or when called through a pointer to a function.
+A pointer to a function becomes just a pointer to a place in a code segment,
+without additional levels of indirect access via <em>function descriptor</em>.
+</p>
+
+<table>
+<caption>Sample map for several modules</caption>
+<thead><tr>
+<th rowspan="3">Address subranges</th>
+<th colspan="40">Address granules (loaded modules, used granules)</th>
+</tr><tr>
+<th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th>
+<th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th>
+<th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th>
+<th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th>
+</tr><tr>
+<td class="imm" colspan="3">m1</td>
+<td class="opx" colspan="3">-</td>
+<td class="imm" colspan="5">m2</td>
+<td class="imm" colspan="6">m3</td>
+<td class="opx" colspan="4">-</td>
+<td class="imm" colspan="6">m4</td>
+<td class="imm" colspan="5">m5</td>
+<td class="imm" colspan="3">m6</td>
+<td class="opx" colspan="5">-</td>
+</tr></thead><tbody>
+<tr><td>TEXT (global)</td>
+<td class="qpr" colspan="2"></td>
+<td class="opx" colspan="1"></td>
+<td class="opx" colspan="3"></td>
+<td class="qpr" colspan="5"></td>
+<td class="qpr" colspan="4"></td>
+<td class="opx" colspan="2"></td>
+<td class="opx" colspan="4"></td>
+<td class="qpr" colspan="2"></td>
+<td class="opx" colspan="4"></td>
+<td class="qpr" colspan="5"></td>
+<td class="qpr" colspan="1"></td>
+<td class="opx" colspan="2"></td>
+<td class="opx" colspan="5"></td>
+</tr><tr><td>process A DATA</td>
+<td class="cpr" colspan="3"></td>
+<td class="opx" colspan="3"></td>
+<td class="cpr" colspan="3"></td>
+<td class="opx" colspan="2"></td>
+<td class="cpr" colspan="6"></td>
+<td class="opx" colspan="4"></td>
+<td class="opx" colspan="6"></td>
+<td class="cpr" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="cpr" colspan="2"></td>
+<td class="opx" colspan="1"></td>
+<td class="opx" colspan="5"></td>
+</tr><tr><td>thread A1 TDATA</td>
+<td class="gpr" colspan="1"></td>
+<td class="opx" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="4"></td>
+<td class="opx" colspan="4"></td>
+<td class="opx" colspan="6"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="3"></td>
+<td class="opx" colspan="5"></td>
+</tr><tr><td>thread A2 TDATA</td>
+<td class="gpr" colspan="1"></td>
+<td class="opx" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="4"></td>
+<td class="opx" colspan="4"></td>
+<td class="opx" colspan="6"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="3"></td>
+<td class="opx" colspan="5"></td>
+</tr><tr><td>process B DATA</td>
+<td class="cpr" colspan="3"></td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="5"></td>
+<td class="cpr" colspan="6"></td>
+<td class="opx" colspan="4"></td>
+<td class="cpr" colspan="6"></td>
+<td class="opx" colspan="5"></td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="5"></td>
+</tr><tr><td>thread B1 TDATA</td>
+<td class="gpr" colspan="1"></td>
+<td class="opx" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="5"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="4"></td>
+<td class="opx" colspan="4"></td>
+<td class="gpr" colspan="1"></td>
+<td class="opx" colspan="5"></td>
+<td class="opx" colspan="5"></td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="5"></td>
+</tr><tr><td>thread B2 TDATA</td>
+<td class="gpr" colspan="1"></td>
+<td class="opx" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="5"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="4"></td>
+<td class="opx" colspan="4"></td>
+<td class="gpr" colspan="1"></td>
+<td class="opx" colspan="5"></td>
+<td class="opx" colspan="5"></td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="5"></td>
+</tr><tr><td>thread B3 TDATA</td>
+<td class="gpr" colspan="1"></td>
+<td class="opx" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="5"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="4"></td>
+<td class="opx" colspan="4"></td>
+<td class="gpr" colspan="1"></td>
+<td class="opx" colspan="5"></td>
+<td class="opx" colspan="5"></td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="5"></td>
+</tr><tr><td>process C DATA</td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="3"></td>
+<td class="cpr" colspan="3"></td>
+<td class="opx" colspan="2"></td>
+<td class="opx" colspan="6"></td>
+<td class="opx" colspan="4"></td>
+<td class="cpr" colspan="6"></td>
+<td class="cpr" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="cpr" colspan="2"></td>
+<td class="opx" colspan="1"></td>
+<td class="opx" colspan="5"></td>
+</tr><tr><td>thread C1 TDATA</td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="6"></td>
+<td class="opx" colspan="4"></td>
+<td class="gpr" colspan="1"></td>
+<td class="opx" colspan="5"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="3"></td>
+<td class="opx" colspan="5"></td>
+</tr><tr><td>thread C2 TDATA</td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="6"></td>
+<td class="opx" colspan="4"></td>
+<td class="gpr" colspan="1"></td>
+<td class="opx" colspan="5"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="3"></td>
+<td class="opx" colspan="5"></td>
+</tr><tr><td>thread C3 TDATA</td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="6"></td>
+<td class="opx" colspan="4"></td>
+<td class="gpr" colspan="1"></td>
+<td class="opx" colspan="5"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="3"></td>
+<td class="opx" colspan="5"></td>
+</tr><tr><td>process D DATA</td>
+<td class="cpr" colspan="3"></td>
+<td class="opx" colspan="3"></td>
+<td class="cpr" colspan="3"></td>
+<td class="opx" colspan="2"></td>
+<td class="cpr" colspan="6"></td>
+<td class="opx" colspan="4"></td>
+<td class="cpr" colspan="6"></td>
+<td class="opx" colspan="5"></td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="5"></td>
+</tr><tr><td>thread D1 TDATA</td>
+<td class="gpr" colspan="1"></td>
+<td class="opx" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="4"></td>
+<td class="opx" colspan="4"></td>
+<td class="gpr" colspan="1"></td>
+<td class="opx" colspan="5"></td>
+<td class="opx" colspan="5"></td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="5"></td>
+</tr><tr><td>process E DATA</td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="3"></td>
+<td class="cpr" colspan="3"></td>
+<td class="opx" colspan="2"></td>
+<td class="cpr" colspan="6"></td>
+<td class="opx" colspan="4"></td>
+<td class="cpr" colspan="6"></td>
+<td class="opx" colspan="5"></td>
+<td class="cpr" colspan="2"></td>
+<td class="opx" colspan="1"></td>
+<td class="opx" colspan="5"></td>
+</tr><tr><td>thread E1 TDATA</td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="4"></td>
+<td class="opx" colspan="4"></td>
+<td class="gpr" colspan="1"></td>
+<td class="opx" colspan="5"></td>
+<td class="opx" colspan="5"></td>
+<td class="gpr" colspan="3"></td>
+<td class="opx" colspan="5"></td>
+</tr><tr><td>thread E2 TDATA</td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="4"></td>
+<td class="opx" colspan="4"></td>
+<td class="gpr" colspan="1"></td>
+<td class="opx" colspan="5"></td>
+<td class="opx" colspan="5"></td>
+<td class="gpr" colspan="3"></td>
+<td class="opx" colspan="5"></td>
+</tr><tr><td>thread E3 TDATA</td>
+<td class="opx" colspan="3"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="3"></td>
+<td class="gpr" colspan="2"></td>
+<td class="opx" colspan="4"></td>
+<td class="opx" colspan="4"></td>
+<td class="gpr" colspan="1"></td>
+<td class="opx" colspan="5"></td>
+<td class="opx" colspan="5"></td>
+<td class="gpr" colspan="3"></td>
+<td class="opx" colspan="5"></td>
+</tr></tbody></table>
+
+<p>When dynamically or statically loading a software module, the loader first determines if this module is presented among the loaded modules in the system.
+If it isn't loaded, the loader determines for the module a maximum of three module sections:
+<psection>CODE</psection>, <psection>DATA</psection> and <psection>TDATA</psection>.
+The loader then looks at the system-wide loaded modules region map and looking for an sufficient size unoccupied address range.
+According to the rules above, similar unoccupied address ranges exist in all three regions at the same distance from the beginning of each region.
+Having found such a range, the loader reserves it for future use by this software module <strong>in all processes and threads</strong>.
+</p>
+
+<p>The module occupies the selected address range until the last process that uses this module terminates.
+Then the system can unload the module and free the address range, so the next time the same module may be loaded into a different address range.
+While the module is loaded, its the base address of the text section of the program module is <strong>unchanged</strong> for all processes using it.
+</p>
+
+</section>
+
+<section id = "abi_asm_examples">
+<title>Examples of assembler code</title>
+
+<p>The following are examples of using <mim>lda_r</mim>, <mim>jmp</mim>, <mim>call_ri</mim>
+to load constants, get procedure addresses, procedure calls.
+</p>
+
+<p>Literals and other local read-only data from the TEXT segment can be loaded using ip-relative addressing.
+Loading Constant Group:</p>
+<code>lda_r base, text_hi (_local_data)
+ld_i32 gb, base, text_lo (_local_data) +0
+ld_u32 gc, base, text_lo (_local_data) +4
+ld_u64 gd, base, text_lo (_local_data) +8
+</code>
+<p>Getting the address of a static procedure
+(within 64 MiB of the current <reg>ip</reg>):</p>
+<code>lda_r base, _myfunc
+</code>
+<p>Getting the address of a static procedure
+(further 64 MiB from the current <reg>ip</reg>):</p>
+<code>lda_r.l base, _myfunc
+</code>
+<p>Getting the address of a dynamic procedure:</p>
+<code>lda_r base, text_hi (_reloc_table)
+ld_u64 gt, base, text_lo (_reloc_table) + __imp_myfunc
+</code>
+<p>Call a static procedure (within 8 GB of the current <reg>ip</reg>):</p>
+<code>call _myfunc
+_ret_label:
+</code>
+<p>Call a static procedure (beyond 8 GB of the current <reg>ip</reg>):</p>
+<code>call.l _myfunc
+_ret_label:
+</code>
+<p>Calling a procedure through a pointer (in the addr register):</p>
+<code>call_ri lp, addr, gz
+_ret_label:
+</code>
+<p>The call of the explicit dynamic procedure (correction of the call by the compiler):</p>
+<code>lda_r base, text_hi (_reloc_table)
+ld_u64 addr, base, text_lo (_reloc_table) + __imp_myfunc
+call_ri lp, addr, gz
+_ret_label:
+</code>
+<p>Invoking an Implicit Dynamic Procedure
+(correction of the call by the linker using the stub function):</p>
+<code>call _glu_myfunc
+_ret_label:
+...
+_glu_myfunc:
+lda_r gt, _reloc_table
+ld_u64 gt, gt, _imp_myfunc
+>call_ri gt, g0
+_glu_ret_label:
+</code>
+<p>Private process data (distance up to 1 MiB):</p>
+<code>ld_u64 gt, gp, _local_data
+</code>
+<p>Private process data (distance greater than 1 MiB):</p>
+<code>lda_n gt1, gp, data_hi (_local_data)
+ld_u64 gt2, gt1, data_lo (_local_data)
+</code>
+<p>thread local data (distance less than 1 MiB):</p>
+<code>ld_u64 gt, gp, _local_data
+</code>
+<p>thread local data (distance greater than 1 MiB):</p>
+<code>lda_n g30, tp, data_hi (_local_data1)
+ld_u64 g31, g30, data_lo (_local_data1)
+lda_n g31, tp, data_hi (_local_data2)
+ld_u64 g32, g31, data_lo (_local_data2)
+</code>
+
+</section>
+</chapter>
