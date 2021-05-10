@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<chapter xmlns="http://www.example.com/postrisc" id="exceptions">
+<title>The software exceptions support</title>
+
+<preface>
+<p><def>Software exceptions</def> are for C++-like throw/try/catch exceptions and for more common SEH-like exceptions.
+The <archname/> is planned to support deterministic exception handling via frame-based unwinding with sufficient hardware support.
+The really zero-cost for exception usage is expected for no-exception cases and fast unwinding for exception cases.
+</p>
+
+<p>The 128-bit link register <reg>r0</reg> preserves 18-bit eip offset, which allow alternate return point in case of exception.
+The exception landing pad address should be after current return address no further than 4 MiB offset.
+The return instructions may jump to usual return address or to the landing pad depending on exception state.
+</p>
+
+<reg_table>
+<caption>Link register format <reg>r0</reg></caption>
+<bits64/>
+<reg_row>
+    <reserved size="60">return address</reserved>
+    <reserved size="2">0</reserved>
+    <reserved size="2">rs</reserved>
+</reg_row>
+<reg_row>
+    <reserved size="32">preserved caller future</reserved>
+    <imm size="18">eip offset</imm>
+    <reserved size="7">out-size</reserved>
+    <reserved size="7">framesize</reserved>
+</reg_row>
+</reg_table>
+
+<p>
+alternate_retaddr = retaddr + 16 <times/> ZEXT(eip_offset)
+</p>
+
+</preface>
+
+<section id="exception_state">
+<title>Program state for exception</title>
+
+<p>Special register <reg>eip</reg> always holds the address of next proper part of unwinding code.
+This register is automatically restored during normal subroutine return.
+It's modified during object construction and destruction.
+Special register <reg>eca</reg> holds the throwing value (usually the address of throwing object).
+</p>
+
+<p>Two return address will be saved to link register during subroutine call: for normal return and for exception return.
+Because registers are 128 bits long, it's enough place for both.
+But because we need store also frameinfo and previous future vector, exception return address is stored as an positive offset from normal return address.
+Exception landing pad should be after function body near 4MiB.
+</p>
+
+<p>So we don't need to return some optional pair (normal return value and optional exception info),
+and always do the check after each call for possible software exception.
+Excepted subroutine finally return directly to the proper next part of unwinding code.
+</p>
+
+<p>The instruction <mim>eh_throw</mim> sets special register <reg>eca</reg> to the value (<param>src</param> + simm21).
+Usually it should be the address of exception context.
+This triggers execution to jump to eip address.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>eh_throw</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <raopx>opx</raopx>
+    <gpr>src</gpr>
+    <binimm>simm21</binimm>
+</slot>
+</slot_table>
+
+<p>The instruction <mim>eh_adj</mim> should be called after the successful construction of the object which requires destruction.
+It checks the current eca context and jumps to current <reg>eip</reg> if exception is set.
+Otherwize, it adjusts <reg>eip</reg> register to the new actual unwinding code address and continues normally to the next instruction.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>eh_adj</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <raopx>opx</raopx>
+    <jump>simm28(60)x16</jump>
+</slot>
+</slot_table>
+
+<p>The instruction <mim>eh_catch</mim> copys the exception context <reg>eca</reg> to general register, clears <reg>eca</reg>,
+and adjust new <reg>eip</reg> value to <reg>ip</reg>+displacement<times/>16.
+</p>
+
+<p>The instruction <mim>eh_catch</mim> should be called before the catch block or before the object destructor.
+For the catch block it adjusts <reg>eip</reg> register to the end of catch block.
+Before object destructor it should adjusts <reg>eip</reg> register to the position after destructor.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>eh_catch</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <raopx>opx</raopx>
+    <gpr>dst</gpr>
+    <branch_opx_res>0</branch_opx_res>
+    <branch>simm17(30)x16</branch>
+</slot>
+</slot_table>
+
+<p>The instruction <mim>eh_next</mim> should be called after the object destructor.
+It restores exception context saved in ehcatch before destructor call and checks for possible double exception fault.
+If it is the second software exception at the time of unwinding first software exception, then hardware exception occurs.
+Otherwise, if it is normal destructor call during unwinding first software exception, execution continues to new eip address.
+Otherwise, if it is normal destructor call without any unwinding, execution continues to next instruction.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>eh_next</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <raopx>opx</raopx>
+    <gpr>src</gpr>
+    <branch_opx_res>0</branch_opx_res>
+    <branch>simm17(30)x16</branch>
+</slot>
+</slot_table>
+
+</section>
+</chapter>
