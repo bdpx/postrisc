@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<preface xmlns="http://www.example.com/postrisc">
+<title>The <archname/> architecture</title>
+
+<p>This document describes the architecture of a non-existent <em>virtual</em> processor.
+The processor instruction set architecture and the processor itself are referred to as <strong><archname/></strong>.
+This name is because <quote>POST-RISC</quote> is a common name for projects of hypothetical processors,
+replacing processors with the RISC architecture (Reduced Instruction Set Computer).
+The virtual processor <archname/> combines the best (as it seems to me) qualities of existing and past architectures.
+</p>
+<p>Main features of the <archname/> architecture:
+</p>
+<ul>
+<li><em>fixed</em> format based on packed bundles of instructions</li>
+<li>a large number of universal registers (128) of 128 bits, for deep loop <em>unrolling</em> and <em>rescheduling</em></li>
+<li><em>register rotation</em> (implemented a general-purpose hardware circular buffer)</li>
+<li><em>load/store</em> architecture with strong separation memory access and computing instructions</li>
+<li>implicit <em>predication</em> (all instructions allow conditional execution under the control of predicate mask)</li>
+<li><em>fused operations</em> (<quote>multiply-add</quote>, shift with addition or subtraction,
+indexed with scaling and memory access, compare and branch, addition with compare and branch)</li>
+<li><em>position independent code</em> only</li>
+<li><em>vector</em> SIMD-like instructions (128-bit universal registers can be used as vectors of integers or real numbers)</li>
+<li>hardware implementation of 128-bit (quadruple) floats</li>
+<li>additional hardware protection against software vulnerabilities</li>
+</ul>
+
+<p>Sources are available at <link href="https://github.com/bdpx/postrisc">https://github.com/bdpx/postrisc</link>.
+This repository contains source code, sample programs for <archname/>, this description of the virtual processor.
+To build program cmake and clang++/g++ needed. To build this documentation from xml sources xsltproc/xmllint needed.
+</p>
+
+<p>The <strong>postrisc</strong> is a console application for all basic tasks.
+Uses standard streams for input/output that need to be redirected from file or to file.
+It is called with different keys from the command line (table below).
+</p>
+
+<table>
+<caption>Common command-line options</caption>
+<thead>
+<tr>
+<th width="35%">Option</th>
+<th>Operation description</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><pre>--scan <lt/>src.s</pre></td><td>scan and recognize individual tokens (tokens) of the source program in assembler virtual processor</td></tr>
+<tr><td><pre>--scan-html <lt/>src.s</pre></td><td>scan and mark as html source program in assembler virtual processor</td></tr>
+<tr><td><pre>--assemble <lt/>src.s <gt/>src.bin</pre></td><td>assemble the program <param>src.s</param> in the object file <param>src.bin</param></td></tr>
+<tr><td><pre>--assemble-c</pre></td><td>assemble as an C++ array for embedding into a C++ program</td></tr>
+<tr><td><pre>--disasm <lt/>src.bin</pre></td><td>disassemble the file <param>src.bin</param></td></tr>
+<tr><td><pre>--dumpbin <lt/>src.bin</pre></td><td>disassemble the <param>src.bin</param> file with binary representation</td></tr>
+<tr><td><pre>--export-definitions</pre></td><td>lists asm known predefined constants</td></tr>
+<tr><td><pre>--dump-file file</pre></td><td>dump final emulation state to file</td></tr>
+<tr><td><pre>--log-file file</pre></td><td>sets log file path</td></tr>
+<tr><td><pre>--log-level level</pre></td><td>set logging level</td></tr>
+<tr><td><pre>--log-subsystem mask</pre></td><td>set logging subsystem mask</td></tr>
+<tr><td><pre>--profiling</pre></td><td>do profiling (per bundle, per core)</td></tr>
+<tr><td><pre>--timing-info</pre></td><td>report timing info</td></tr>
+<tr><td><pre>--verbose</pre></td><td>verbose logging</td></tr>
+</tbody>
+</table>
+
+<table>
+<caption>Whole-system emulation command-line options</caption>
+<thead>
+<tr>
+<th width="35%">Option</th>
+<th>Operation description</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><pre>--execute <lt/>src.bin</pre></td><td>execute the raw program <param>src.bin</param> in the emulator</td></tr>
+<tr><td><pre>--base-address vaddr</pre></td><td>set virtual base address for image loading</td></tr>
+<tr><td><pre>--device-array paddr vaddr config-size</pre></td><td>set device array info: physical address, virtual address, device configuration space size</td></tr>
+<tr><td><pre>--memory size paddr</pre></td><td>add memory device with size (in hexadecimal) starting from physical address paddr</td></tr>
+<tr><td><pre>--pa-size nbits</pre></td><td>set physical address size in bits</td></tr>
+<tr><td><pre>--paging offset nlevels</pre></td><td>set paging info: page offset in bits and number of indexing levels. Depth of virtual address space will be: offset+nlevels*(offset-3)</td></tr>
+<tr><td><pre>--rom path paddr vaddr</pre></td><td>add ROM image, map it to corresponding physical and virtual addresses</td></tr>
+<tr><td><pre>--video paddr vaddr width height</pre></td><td>add video device (experimental)</td></tr>
+</tbody>
+</table>
+
+<table>
+<caption>User-app emulation command-line options</caption>
+<thead>
+<tr>
+<th width="35%">Option</th>
+<th>Operation description</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><pre>--exeapp</pre></td><td>execute the ELF program in the emulator. Static PIE executables only, syscall emulator for Linux-like system (very limited).</td></tr>
+<tr><td><pre>--env key=value</pre></td><td>add guest app environment variable</td></tr>
+<tr><td><pre>--</pre></td><td>separator between <archname/> engine options and emulated guest program options</td></tr>
+</tbody>
+</table>
+
+<p>For example, running  <archname/> ELF static-PIE image:
+</p>
+
+<code>
+/path/to/postrisc \
+    --exeapp --log-file "test-log.txt" \
+    -- \
+    postrisc-app -app-option1 -app-options2
+</code>
+
+<p>The <strong>qtpostrisc</strong> is a Qt-based graphical application
+with assembler editor, debugger, doom graphical backend, etc (Qt6 required).
+Support same command-line options as console app.
+</p>
+
+<p>For Wayland systems currently requires switch to X11 via <quote>QT_QPA_PLATFORM=xcb</quote> env:
+</p>
+
+<code>
+QT_QPA_PLATFORM=xcb /path/to/qtpostrisc \
+    --exeapp --log-file "doom-log.txt" \
+    -- \
+    doomgeneric.postrisc -doom -options
+</code>
+
+<p>Separate <def>html</def> utility app generates html with information about the syntax of assembler instructions,
+the format of machine instructions, operation codes, statistics for the instruction set.</p>
+
+<p>Separate <def>llvm</def> utility app generates llvm tablegen file with information about the instructions encoding,
+the format of machine instructions, operation codes, etc.
+Its output is used as <quote>PostriscInstrEncoding.td</quote> in LLVM compiler backend.</p>
+
+<p>If this manual for the instruction architecture and assembler syntax doesn't exactly match the sample program (not yet updated),
+then this <link href="gen.html">gen.html</link> file contains a brief instruction set manual, automatically generated by the assembler.
+</p>
+
+<p>Example program for assembler <archname/> <link href="program.html">program.html</link>
+does nothing sensible but uses all machine instructions and pseudo-instructions of assembler, all sections of the program, all addressing modes,
+and its only meaning is joint testing of assembler, disassembler, emulator in the process of writing them.
+It is a concatenation if separate little tests.
+</p>
+
+<p>The resulting binary program may be disassembled: <link href="out_diz.s">out_diz.s</link> and <link href="out_dump.s">out_dump.s</link> (with reported binary representation).
+</p>
+
+<p>The results: <link href="result.txt">result.txt</link>. And full system dump: <link href="dump.html">dump.html</link>.
+</p>
+
+<p>The <archname/> building is based on cmake.
+Use generators "MSYS Makefiles" (Windows) or "Unix Makefiles" (Linux).
+Set -DCMAKE_BUILD_TYPE=Release as default.
+Set -DCMAKE_CXX_COMPILER=g++ or clang++ (MSVC isn't supported).
+The <quote>USE_QUADMATH</quote> macro controls the used long floating point internal implementation (quadmath or mpreal).
+Set -DUSE_QUADMATH=0 for clang (it doesn't support libquadmath), set 0 or 1 for g++.
+</p>
+
+<p>The author is grateful in advance for reporting errors and inaccuracies in the virtual processor description and in the source code (which is far from error-free).
+</p>
+
+<p>A set of tools for working with <archname/> (assembler, disassembler, emulator is implemented) is incomplete.
+Further directions for improvement (the number in brackets like [2] characterizes the comparative complexity of the tasks):
+</p>
+
+<ol>
+
+<li>Development of a <em>set of sample programs</em> to illustrate the capabilities of the virtual processor and assembler <archname/> [1].
+</li>
+
+<li>Development of a <em>macroprocessor</em> for the assembler <archname/>[3].
+</li>
+
+<li>Refactoring the <em>formula calculation unit</em> to introduce strict control over the use of object names in formulas
+(according to sections and segments of the program and the relocation types) [2].
+</li>
+
+<li>Development of the <em>object file format</em> for a virtual processor compatible with the ELF standard, processing assembler for ELF [2].
+</li>
+
+<li>Development of <em>separate compilation tools</em>,
+support for relocation records according to the ELF standard (Executable and Linkable Format) in assembler and the development of the linker [2].
+</li>
+
+<li>Development of the <em>block of floating-point calculations</em> in the emulator (implemented), and support for real constants in assembler [3].
+</li>
+
+<li>Development of a <em>visual debugger</em> for the emulator <archname/> [2].
+</li>
+
+<li>Development of a <em>text editor</em> with syntax highlighting of the assembler virtual processor [2].
+</li>
+
+<li>Adding new <quote>hardware</quote> tools to the virtual processor architecture and its emulator:
+cache management, virtual memory and translation buffer [2].
+</li>
+
+<li>Development of a <em>simulator</em> (cycle-accurate emulator) of the possible hardware implementation of a virtual processor,
+with the simulation of hardware such as multi-level instruction/data caches,
+translation buffers, branch prediction cache, return prediction stack, and other modern hardware. [5]
+</li>
+
+</ol>
+
+</preface>
