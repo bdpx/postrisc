@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<chapter xmlns="http://www.example.com/postrisc" id="llvm">
+<title>LLVM backend</title>
+
+<preface>
+
+<p>Development of the <archname/> backend for the LLVM compiler:
+<link href="https://github.com/bdpx/llvm-project">github.com/bdpx/llvm-project</link>.
+</p>
+
+
+</preface>
+
+<section id="llvm_intro">
+<title>LLVM backend intro</title>
+
+<p>How to build/use.</p>
+
+</section>
+
+<section id="llvm_limitations">
+<title>LLVM backend limitations</title>
+
+<p>Nullification doesn't work, in progress.</p>
+
+<p>Pre/post update addressing is not used.</p>
+
+<p>Currently, only static PIE executables are supported by compiler and emulator.</p>
+
+</section>
+
+<section id="llvm_musl_port">
+<title>MUSL port</title>
+
+<p><archname/> port for MUSL: <link href="https://github.com/bdpx/musl">github.com/bdpx/musl</link>.
+</p>
+<p>MUSL limitations: doesn't support f128.</p>
+<p><archname/> limitations: currently, buildable only as a static lib.</p>
+
+</section>
+
+<section id="llvm_code_density">
+<title>Code density comparison</title>
+
+<p>Here are <link href="https://www.reddit.com/r/hardware/comments/jxsiee/comment/gd23zbm/">results</link> for SQLite 3.33.0 compiled with Clang 10.0.1 on FreeBSD 12.1 with -Os for various architectures:
+</p>
+
+<table width="90%">
+<thead>
+<tr>
+<th>text</th><th>data</th><th>bss</th><th width="50%">filename</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>649095</td><td>4576</td><td>964</td><td>sqlite3.a32.o</td></tr>
+<tr><td>588115</td><td>8280</td><td>1304</td><td>sqlite3.a64.o</td></tr>
+<tr><td>641257</td><td>8320</td><td>1312</td><td>sqlite3.amd64.o</td></tr>
+<tr><td>584276</td><td>4576</td><td>952</td><td>sqlite3.i686.o</td></tr>
+<tr><td>795319</td><td>16688</td><td>1304</td><td>sqlite3.mips64el.o</td></tr>
+<tr><td>725083</td><td>4576</td><td>960</td><td>sqlite3.mipsel.o</td></tr>
+<tr><td>691715</td><td>9148</td><td>960</td><td>sqlite3.ppc.o</td></tr>
+<tr><td>712559</td><td>49144</td><td>1304</td><td>sqlite3.ppc64.o</td></tr>
+<tr><td>689035</td><td>4960</td><td>959</td><td>sqlite3.rv32g.o</td></tr>
+<tr><td>509583</td><td>4960</td><td>959</td><td>sqlite3.rv32gc.o</td></tr>
+<tr><td>689035</td><td>4960</td><td>959</td><td>sqlite3.rv64g.o</td></tr>
+<tr><td>512500</td><td>8668</td><td>1299</td><td>sqlite3.rv64gc.o</td></tr>
+<tr><td>917929</td><td>8280</td><td>1304</td><td>sqlite3.s390x.o</td></tr>
+<tr><td>445205</td><td>4576</td><td>964</td><td>sqlite3.t32.o</td></tr>
+</tbody>
+</table>
+
+<p>where a32 is ARMv7-A in ARM mode, t32 is the same in thumb mode and a64 is ARMv8-A.
+The rest are self explanatory.
+The clear winner is ARM Thumb, but RISC-V does well indeed (with compressed instructions).
+It's the most space efficient 64 bit ISA for sure.
+i686 does a little worse (still the third most compact after RV32gc and T32) and the classic RISC instruction sets are just terrible.
+The clear loser is Z/Architecture (S390x).
+</p>
+
+<p>The probably same SQLite 3.33.0
+<link href="https://chromium.googlesource.com/chromium/deps/sqlite/+/refs/heads/chromium-version-3.33.0/amalgamation_dev/">sqlite-chromium-version-3.33.0</link>,
+compiled with the <archname/> port for Clang 20.0 on Linux and for comparison x86-64 Clang 16.0.6 and gcc 13.2.
+</p>
+
+<table width="90%">
+<thead>
+<tr>
+<th>text</th><th>data</th><th>bss</th><th width="25%">filename</th><th width="25%">comments</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>519367</td><td>8320</td><td>1691</td><td>sqlite3.x86_64.o</td><td>Os, clang 16</td></tr>
+<tr><td>772703</td><td>8320</td><td>1691</td><td>sqlite3.x86_64.o</td><td>O2, clang 16</td></tr>
+<tr><td>430514</td><td>17032</td><td>1784</td><td>sqlite3.x86_64.o</td><td>Os, gcc 14</td></tr>
+<tr><td>705880</td><td>16864</td><td>1784</td><td>sqlite3.x86_64.o</td><td>O2, gcc 14</td></tr>
+<tr><td>757584</td><td>8280</td><td>1683</td><td>sqlite3.postrisc.o</td><td>Os, clang 20</td></tr>
+<tr><td>772064</td><td>8280</td><td>1683</td><td>sqlite3.postrisc.o</td><td>O2, clang 20</td></tr>
+<tr><td>813712</td><td>8280</td><td>1683</td><td>sqlite3.postrisc.o</td><td>Os, no dense calls</td></tr>
+<tr><td>1132320</td><td>8280</td><td>1683</td><td>sqlite3.postrisc.o</td><td>O2, no dense calls</td></tr>
+</tbody>
+</table>
+
+<p>The results for <archname/> are without using nullification and without using the post-update addressing modes (not implemented yet in the compiler) which may improve code density a bit.
+The main factor for code density is the possibility of returning inside the middle of an instruction bundle (dense calls).
+In common, code density for <archname/> is more or less similar to MIPS, PowerPC, S-390, and RISC-V (without compression) and only slightly worse.
+This is surprising taking into account 128 registers, bundles, nops, etc.
+For O2 mode results are similar to clang-x86_64, even lesser.
+</p>
+
+</section>
+
+<section id="llvm_doom_port">
+<title>DOOM port</title>
+
+<p><archname/> port for Doom-1: <link href="https://github.com/bdpx/postrisc_doom">github.com/bdpx/postrisc_doom</link>.
+Uses the MUSL standard library (as a static lib).
+Doom generic interface is implemented as additional system calls.
+Workable, with little graphic artifacts.
+</p>
+
+<p>The emulator log <link href="doom-log.html">doom-log.html</link> with static/dynamic instruction statistic for Doom Shareware demo scene autoplay.
+First 3 demoscenes (around).
+Time: 341.022 seconds.
+Frames: 16519.
+Iinstructions per frame: 885131 (up to 8-bit indexed image not counting emulator scaling/mapping).
+Instructions per pixel: 13.830.
+Frames per second: 48.439.
+</p>
+
+</section>
+
+</chapter>
