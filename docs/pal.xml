@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<chapter xmlns="http://www.example.com/postrisc" id="pal">
+<title>PAL (Privileged Architecture Library)</title>
+
+<preface>
+<p>In a family of binary compatible machines, application and operating system developers require
+so that the hardware functions are implemented sequentially (uniformly).
+When functions correspond to a common interface, code using these functions
+can be used by several different architecture implementations without modification.</p>
+
+<p>These can be such functions as: binary code of instructions and data, exception mechanisms, synchronization primitives.
+Some of these functions can be implemented cost-effectively in hardware,
+other functions are impractical to carry out directly in the equipment.
+These features include low-level hardware features such as
+miss buffer translation routines; interrupt handling; interrupt vector control.
+They also include support for privileged and atomic operations that require long sequences of instructions.</p>
+
+<p>In earlier architectures, these functions were usually provided with microcode.
+Modern architectures try not to use microcode mechanisms.
+However, it is still desirable to provide an architectural interface to these functions, which will be compatible for the entire family of machines.
+The Privileged Architecture Library or PAL (Privileged Architecture Library) provides a mechanism for implementing these functions without microcode.</p>
+
+<p>Three main components of Privileged Architecture Library:
+Processor Abstraction Layer (PAL), System Abstraction Layer (SAL),
+Extensible Firmware Interface (EFI).
+PAL, SAL, and EFI together initialize the processor and system before and for loading the operating system.
+PAL and SAL also provide machine check abort handling and other processor and system functions that may vary from implementation to implementation.</p>
+
+<p><def>Extensible Firmware Interface</def> (EFI) is the firmware layer that isolates the operating system loader from the details (differences)
+in the implementation of the platform and processor and organizes the basic functionality for controlling a machine without an OS.</p>
+
+<p><def>System Abstraction Layer</def> (SAL) is the firmware layer that isolates the operating system, the overlying EFI layer,
+and other high-level software from the details (differences) in the implementation of the platform.</p>
+
+<p><def>Processor Abstraction Layer</def> (PAL) is a software layer that abstracts the details of the processor implementation and isolates them from all:
+from the operating system, from the EFI layer and from the SAL layer.
+PAL is independent of the number of processors in the system.
+PAL encapsulates processor functions that are likely to change from implementation to implementation, so that SAL, EFI, and OS are independent of the processor version.
+This includes non-performance-critical functions, such as processor initialization, configuration, and correction of internal errors.
+PAL consists of two components:</p>
+
+<ul>
+<li>Entry points that are called directly by special hardware interrupts,
+such as RESET (hardware cold start), INIT (software warm restart),
+CHECK (error recovery), PMI (platform management interrupt).</li>
+<li>Procedures that may be called by the upper layers of the software to obtain information
+about identification, configuration, processor implementation capabilities;
+to perform implementation-dependent functions, such as cache initialization;
+or to allow software to interact with the hardware through such functions
+like power management or enable/disable processor features.</li>
+</ul>
+
+<p>The PAL address space occupies a maximum of 2 GB of physical address space.
+The PAL space contains addresses from <hex>0x80000000</hex> to <hex>0xffffffff</hex> inclusive.
+Code execution after restart starts with the address <hex>0x80000000</hex>.</p>
+
+</preface>
+
+<section id="pal_instructions">
+<title>PAL instructions and functions</title>
+
+<p>PAL should perform the following functions:</p>
+<ul>
+<li>instructions that perform a complex sequence as an atomic operation;</li>
+<li>privileged instructions;</li>
+<li>memory management, including translation buffer management (TLB);</li>
+<li>change of context;</li>
+<li>handling interruptions and exceptions;</li>
+<li>power-on initialization and boot (zero OS);</li>
+<li>low-level console output functions;</li>
+<li>instruction emulation without hardware support.</li>
+</ul>
+
+<p>The architecture allows these functions to be implemented in standard machine code, which residently resides in main memory.
+The PAL library is written in standard machine code with some implementation-specific extensions,
+to provide access to low-level hardware.
+This allows the implementation to make various project exchanges based on the used hardware technology.
+The PAL library allows you to abstract these differences and make them invisible to system software.</p>
+
+<p>The PAL environment differs from the normal environment in the following ways:</p>
+
+<ul>
+<li>Complete machine state management.</li>
+
+<li>Interrupts are blocked.</li>
+
+<li>Implementation-specific hardware functions are allowed as described below.</li>
+
+<li>Memory management should prevent the execution thread from being captured
+(disable display for PAL code, display PAL with a fixed TLB input, or other mechanisms).</li>
+</ul>
+
+<p>Full control of the state of the machine allows you to manage all the functions of the machine.
+Disabling interrupts allows you to provide sequences of several instructions as atomic operation.
+Providing implementation-specific hardware features allows access to low-level system hardware.
+Preventing memory management Captures I-stream allows PAL to implement memory management functions such as filling the translation buffer.</p>
+
+<p>Special Features Required for PAL</p>
+
+<p>PAL uses the <archname/> instruction set for most of its operations.
+A small number of additional functions are required to implement PAL.
+Some of the free primary and/or extended opcodes can be used for PAL functions.
+These instructions generate an error if executed outside the PAL environment.</p>
+
+<ul>
+<li>PAL needs a mechanism to maintain the current state of the machine and branch to PAL.</li>
+<li>PAL needs a set of instructions to access the hardware control registers.</li>
+<li>PAL needs a hardware mechanism to transition the machine from a PAL environment to a non-PAL environment.
+This mechanism loads <reg>ip</reg>, allows interrupts, allows display, and disables PAL privileges.</li>
+</ul>
+
+<p>Having PAL will have only one effect on system code.
+Because PAL can fit in main memory and support privileged data structures in main memory,
+the operating system code that allocates the physical memory cannot use all of the physical memory.
+The amount of memory required by the PAL is small, so the loss for the system is negligible.</p>
+
+</section>
+
+<section id="pal_changes">
+<title>PAL replacement</title>
+
+<p><archname/> systems require that you can replace PAL with a version defined by the operating system.
+The following functions can be implemented in PAL code, not directly in the hardware, to facilitate the replacement with different versions.</p>
+
+<p><strong>Fill translation buffer.</strong> Various operating systems may wish to replace the translation buffer fill (TLB) routines.
+Substitution routines will use different data structures for page tables.
+Therefore, no part of the TLB padding tools that would change with a change in the page tables can be placed in hardware,
+if it cannot be canceled by the PAL code.</p>
+
+<p><strong>Process structure.</strong> Various operating systems may wish to replace the process context switch routines.
+Substitution routines will use different data structures.
+Therefore, no part of the context switching threads that would change with a change in the structure of the process can be placed in hardware.</p>
+
+<p>PAL consists of three components:</p>
+<ul>
+<li>chip/architecture components</li>
+<li>platform hardware component</li>
+<li>operating system component</li>
+</ul>
+
+</section>
+
+<comment>
+<p>PAL should be written modularly to facilitate easy replacement or conditional expression of each component.
+This practice simplifies the integration of CPU hardware,
+system hardware platform, console programmable equipment,
+operating system software, and translators.
+PAL subsections, which are usually subordinate to modification, include:</p>
+
+<ul>
+<li>fill the translation buffer;</li>
+<li>process structure and context switch;</li>
+<li>interruption and exception create format and standard dispatch;</li>
+<li>privileged PAL instructions;</li>
+<li>transitions to console mode IO and back;</li>
+<li>reset or power on.</li>
+</ul>
+
+<subsection id="barriers">
+<title>Barriers</title>
+
+<p>The first register is the result. The second and third are operands. Extended opcode takes 6 bits.</p>
+
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Description</th>
+<th>OPX</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>EXCB</td><td>Exception barrier</td><td>4</td></tr>
+<tr><td>TRAPB</td><td>Trap barrier</td><td>5</td></tr>
+<tr><td>MB</td><td>Memory barrier</td><td>6</td></tr>
+<tr><td>WMB</td><td>Write memory barrier</td><td>7</td></tr>
+<tr><td>get_spr</td><td>get special register</td><td>8</td></tr>
+<tr><td>set_spr</td><td>set special register</td><td>9</td></tr>
+<tr><td>DSSTOP</td><td>Stops cache touches for MASK stream</td><td>10</td></tr>
+<tr><td>DSTL</td><td>Cache touches for N loads</td><td>12</td></tr>
+<tr><td>DSTS</td><td>Cache touches for N stores</td><td>13</td></tr>
+<tr><td>LDDL</td><td>load double word locked</td><td>14</td></tr>
+<tr><td>STDC</td><td>store double word conditional</td><td>15</td></tr>
+<tr><td>LDQL</td><td>load quadruple word locked</td><td>16</td></tr>
+<tr><td>STQC</td><td>store quadruple word conditional</td><td>17</td></tr>
+</tbody>
+</table>
+
+<p>Instructions EXCB, TRAPB, MB, WMB - barriers used for serialization of instructions and synchronization.
+EXCB Exceptions barrier completion of all instructions that may cause an interrupt
+TRAPB Trap barrier completion of all instructions that may cause an interrupt
+MB Memory barrier completion of all load/store operations with shared memory
+WMB Write memory barrier completion of all write operations to shared memory
+Optional instructions LDDL, STDC, LDWL, STWC are used to organize blocked access to shared memory.
+</p>
+
+<code>LDDL a = dword [b], lock
+STDC dword [b] = a, unlock
+LDWL a = word [b], lock
+STWC word [b] = a, unlock
+</code>
+
+</subsection>
+</comment>
+
+</chapter>
+

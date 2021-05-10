@@ -1,0 +1,662 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<chapter xmlns="http://www.example.com/postrisc" id="virtual_memory">
+<title>Virtual memory</title>
+
+<preface>
+
+<p>This chapter additionally defines operating system resources to translate 64-bit virtual addresses to physical addresses.
+The virtual memory model introduces the following key features that distinguish it from the simplified presentation of application programs:
+</p>
+
+<p><strong>Translation lookaside buffer</strong> (TLB) support high-performance paged virtual memory systems.
+Software handlers for populating and protecting TLBs allow the operating system to control translation policies and protection algorithms.
+</p>
+
+<p><strong>Page table</strong> (PT) with hardware browsing capabilities has been added to increase TLB performance.
+PT is a continuation of the processor TLB, which is located in RAM and can be automatically viewed by the processor.
+The use of PT, its size, is entirely under software control.
+</p>
+
+<p><strong>Sparse 64-bit virtual addressing</strong> is supported by provisioning
+large translation structures (including multi-level hierarchies, like a cache hierarchy),
+effective support for processing translation misses, pages of different sizes, fixed (non-replaceable out) translations,
+mechanisms for sharing TLBs and page table resources.
+</p>
+
+<p>The main addressable object in the architecture is an 8-bit byte.
+Virtual addresses are 64 bits long.
+An implementation may support less virtual address space.
+Virtual addresses visible by the program are translated into physical memory addresses by the memory management mechanism.
+</p>
+
+</preface>
+
+<section id="mem_virtual_addressing">
+<title>Virtual addressing</title>
+
+<p>From an application point of view, the virtual addressing model represents a 64-bit single flat linear virtual address space.
+General purpose registers are used as 64-bit pointers in this address space.
+</p>
+
+<p>Less than 64 bits of a virtual address may be implemented in hardware.
+Unimplemented address bits must be filled with copies of the last implemented bit (be a sign extension of the implemented part of the address).
+Addresses in which all unimplemented bits match the last implemented bit are called <def>canonical</def>.
+Implemented virtual address space in this case consists of two parts: user and kernel.
+For N implemented virtual address bits, the user addresses ranges from 0 to 2<sup>N-1</sup>-1,
+and the kernel addresses ranges from 2<sup>64</sup>-2<sup>N-1</sup> to 2<sup>64</sup>-1.
+</p>
+
+<p>So, for example, for 48 bits:
+</p>
+
+<code>0x0000000000000000 - start of user range
+0x00007FFFFFFFFFFF - end of user range
+0xFFFF800000000000 - beginning of the kernel range
+0xFFFFFFFFFFFFFFFF - end of kernel range</code>
+
+<p>Each virtual address consists of a page table index (1 bit), virtual page number (VPN) and page offset.
+The least significant bits form the page offset.
+The virtual page number consists of the remaining bits.
+Page offset bits don't change during translation.
+The border between page offset and VPN in the virtual address changes depending on the page size, used in virtual display.
+In the current implementation, 16 Kib page sizes are available, and super pages are multiples of 16 Kib (32 MiB and 64 GiB).
+</p>
+
+<reg_table>
+<caption>Virtual address, unimplemented bits, 16 KiB pages</caption>
+<bits64/>
+<reg_row>
+    <reserved size="17">sign extension</reserved>
+    <imm size="33">virtual page number</imm>
+    <imm size="14">16 KiB page offset</imm>
+</reg_row>
+</reg_table>
+
+<p>Switching between physical and virtual addressing modes is controlled by the privileged special register <reg>pta</reg>.
+The <regfield>mode</regfield> field sets the page translation mode.
+After restarting the processor, this flag is zero.
+Virtual addressing is allowed via <regfield>pta.mode</regfield>!=0.
+</p>
+
+<table>
+<caption>PTA modes</caption>
+<thead>
+<tr>
+<th>pta.mode</th>
+<th>description</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>0</td><td>without translation (physical addressing)</td></tr>
+<tr><td>1</td><td>reserved</td></tr>
+<tr><td>2</td><td>2 translation levels</td></tr>
+<tr><td>3</td><td>3 translation levels</td></tr>
+<tr><td>4</td><td>4 translation levels</td></tr>
+</tbody></table>
+
+<p>A variable page size is needed to help the software display system resources, to improve TLB utilization.
+Typically, operating systems choose a small range of page sizes to implement their virtual memory algorithms.
+Large pages can be statically distributed.
+For example, large areas of virtual addressing space can be allocated to the kernel of the operating system, frame buffers, or mapped IO regions.
+The software can also selectively pin these translations by placing them in translation registers.
+</p>
+
+<p>Page size can be specified in: translation cache, translation registers, and PT.
+Page size can also be used as a parameter for TLB cleanup instructions.
+</p>
+
+<p>The page sizes are encoded as a 4-bit field <regfield>ps</regfield> (pagesize).
+Each field defines the display size of <formula>2<sup>ps+12</sup></formula> bytes.
+</p>
+
+<p>Virtual and physical pages should be aligned on their natural border.
+For example, 64 kilobyte pages are aligned at the 64KiB border, and 4 megabyte along the border of 4 megabytes.
+</p>
+
+<p>Processors using variable virtual page sizes,
+are characterized by the need for hardware implementation of the <strong>fully associative</strong> TLB buffer.
+Processors that use only one page size can be bypassed in part by an associative buffer,
+although usually fully associative.
+</p>
+
+<table>
+<caption>Page permissions</caption>
+<thead>
+<tr>
+<th>abbreviation</th>
+<th>designation</th>
+<th>description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>r</td>
+<td>read</td>
+<td>read access with the usual load/store instructions</td>
+</tr>
+<tr>
+<td>w</td>
+<td>write</td>
+<td>write access with normal load/store instructions</td>
+</tr>
+<tr>
+<td>x</td>
+<td>execute</td>
+<td>code execution access</td>
+</tr>
+<tr>
+<td>b</td>
+<td>backstore</td>
+<td>saving/restoring registers from the hardware register stack</td>
+</tr>
+<tr>
+<td>f</td>
+<td>finalized</td>
+<td>final state, page rights cannot be changed,
+gives the right to read addresses for indirect call instructions through trusted import tables and virtual function tables</td>
+</tr>
+<tr>
+<td>p</td>
+<td>promote</td>
+<td>the right to elevate privileges of the current thread to the kernel level</td>
+</tr>
+</tbody>
+</table>
+
+<p>The software can check page level permissions with the instructions <mim>mprobe</mim>, <mim>mprobef</mim>,
+which check the availability of this virtual page, privilege level,
+read/write permissions at the page level, and read/write permissions with a security key.
+</p>
+
+<p>Executable-only pages may be used, to increase privileges on entering operating system code.
+User level code should usually go to such a page (managed by the operating system)
+and execute the instruction <mim>epc</mim> (<miname>Enter Privileged Code</miname>).
+When <mim>epc</mim> has successfully elevated privileges, the subsequent instructions are executed at the target privilege level indicated by the page.
+A branch can (optionally) lower the current privilege level if the page where the branch is made has a lower privilege level.
+</p>
+
+</section>
+
+<section id="mem_tlb">
+<title>Translation lookaside buffers</title>
+
+<p>Virtual addresses are translated to physical addresses using
+a hardware structure called Translate Lookaside Buffer (TLB) or translation cache.
+Using the virtual page number (VPN), the TLB finds and returns the physical page number (PPN).
+A processor usually have two TLB architectural buffers: instruction TLB (ITLB) and data TLB (DTLB).
+Each TLB buffer translates, respectively, references to instructions and data.
+In a simplified implementation, a single (combined) buffer used for both types of translation can be implemented.
+The term TLB itself refers to the union of instructions, data, and translation cache structures.
+</p>
+
+<p>When the processor accesses the memory in the TLB, a translation record is searched with the corresponding VPN value.
+If the corresponding translation record is found, the physical page number PPN (physical page number) is combined with the page offset bits,
+to form a physical address.
+In parallel with the translation, page permissions are checked by privilege level and the permissions granted for reading, writing, and executing are checked.
+</p>
+
+<p>If the required translation is not found in the TLB, the processor itself can search the page table in memory and install it in the TLB.
+If the required input cannot be found in the TLB and/or page table, the processor generates a miss error in the TLB so that the operating system establishes the translation.
+In a simplified implementation, the processor may generate an error immediately after a miss in the TLB.
+After the operating system installs the translation in the TLB and/or page table, the erroneous instruction may be restarted and execution continues.
+</p>
+
+<reg_table>
+<caption>Translation format in TLB</caption>
+<bits64/>
+<reg_row>
+    <imm size="50">ppn</imm>
+    <bitfield size="2">pl</bitfield>
+    <bitfield size="4">ma</bitfield>
+    <bitfield>a</bitfield>
+    <bitfield>d</bitfield>
+    <reserved>0</reserved>
+    <bitfield>p</bitfield>
+    <bitfield size="3">ar</bitfield>
+    <bitfield>v</bitfield>
+</reg_row>
+<reg_row>
+    <imm size="50">vpn</imm>
+    <reserved size="8">rv</reserved>
+    <bitfield size="6">ps</bitfield>
+</reg_row>
+<reg_row>
+    <reserved size="40">rv</reserved>
+    <imm size="24">asid</imm>
+</reg_row>
+</reg_table>
+
+<table>
+<caption>TLB translation record fields</caption>
+<thead><tr>
+<th>Translation field</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr><td>v</td><td>Valid bit. If this bit is 1, then translation can be used in the search.</td></tr>
+<tr><td>ar</td><td>Global permissions for the virtual page.</td></tr>
+<tr><td>p</td><td>Present bit. This bit indicates that the mapped physical page is present in the physical memory and not ejected to disk.</td></tr>
+<tr><td>ma</td><td>memory attributes. Describes caching, coherence, writing method, and other attributes of the displayed physical page.</td></tr>
+<tr><td>a</td><td>Access bit. This bit may cause an error on access for tracing or debugging purposes. The processor doesn't modify Access bit when referenced.</td></tr>
+<tr><td>d</td><td>Dirty bit. There was a write or semaphore instruction on this page.</td></tr>
+<tr><td>pl</td><td>Privilege Level or Page Level.</td></tr>
+<tr><td>ppn</td><td>Physical page number.</td></tr>
+<tr><td>ps</td><td>Page size 2<sup>ps</sup> bytes.</td></tr>
+<tr><td>vpn</td><td>Virtual Page Number.</td></tr>
+<tr><td>asid</td><td>Address Space identifer.</td></tr>
+<tr><td>rv</td><td>Reserved (doesn't exist)</td></tr>
+</tbody></table>
+
+<p>TLB is local processor resource (local insertion or clearing of translation entries on one processor doesn't affect the TLB of another processor).
+Global TLB cleanup is provided to clean translations in all processors within a coherent TLB region in a multiprocessor system.
+</p>
+
+<p><def>Translation Cache</def> (TC) is an implementation-defined structure,
+designed to store a small working set of dynamic translations for links to memory.
+The processor directly controls the record replacement policy in the TC.
+</p>
+
+<p>Purge translation cache <mim>ptc</mim> (<miname>purge translation cache</miname>) produces
+cleaning ITC/DTC local processor entries that match the specified range of virtual addresses.
+The software should handle the case where cleaning should be extended to all processors in a multiprocessor system.
+Flushing the translation cache doesn't affect fixed TC inputs.
+</p>
+
+<p>The translation cache has at least 16 inputs for itc and 16 inputs for DTC.
+An implementation may have additional levels of a TLB hierarchy to increase efficiency.
+</p>
+
+<p>The translation cache is controlled by both software and hardware.
+Generally speaking, the software cannot assume how long any installed translation will remain in the cache.
+This term, as well as the replacement (extrusion) algorithm, depends on the implementation.
+A processor can push translations out of the cache at any given time for various reasons.
+TC cleanups can remove more inputs than is explicitly required.</p>
+
+<p>Records in the translation cache must be maintained in a <em>consistent</em> state.
+When you insert or clean a TLB, all existing entries must be deleted.
+which partially or completely overlap with the given translations.
+In this context, <em>overlap</em> refers to two translations with partially or completely overlapping ranges of virtual addressing.
+For example: two 64K pages with the same virtual addressing,
+or a 128K page with the virtual address <hex>0x20000</hex> and a 64K page with the address <hex>0x30000</hex>.
+</p>
+
+<p><def>Translation registers</def> (TR) is part of the TLB, which contain translations whose replacement policies are controlled directly by the software.
+Each translation cache entry can be <em>fixed</em> and turned to a software-controlled translation register or unlocked and sent to a common pool.
+Fixed translations are not replaced when the TC overflows (but are flushed when overlapping with new translations).
+Fixed insert into the previously unfixed TC entry removes the cached translation in this entry.
+The software can explicitly embed translations in TR by determining the entry number in the cache.
+Translations are deleted from TR when the translation register is cleared, but not when the translation cache is cleared.
+</p>
+
+<p>Translation registers allow the operating system to <em>pin</em> critical virtual memory translations into TLB,
+for example, IO spaces, kernel memory areas, frame buffers, page tables, sensitive interrupt code, etc.
+The interrupt handler instruction fetching is performed using virtual addressing, and therefore,
+virtual address ranges containing software translation miss handlers and other critical interrupt handlers should be fixed,
+otherwise, additional recursive misses in the TLB may occur.
+Other virtual mappings may be pinned for performance reasons.
+</p>
+
+<p>Insertion record will be fixed if it is done with the fix bit turned on.
+Once such a translation falls into the TLB, the processor will not replace this translation in order to make room for other translations.
+Fixed translations can only be deleted by the TLB software cleanup.
+Insertions and cleanups of translation registers can selectively delete other translations (from the translation cache).
+</p>
+
+<p>A processor must have at least 8 fixed translation registers for itc and 8 for dtc.
+An implementation may have additional translation registers to increase efficiency.
+</p>
+
+</section>
+
+<section id="mem_page_table_walker">
+<title>Search for translations in memory</title>
+
+<p>In case of a miss to the TLB translation hardware cache (lack of the necessary record), an interrupt occurs
+and the software miss handler comes into play.
+He should find the necessary translation in the page table in memory and place it in TLB,
+after which the instruction that caused the interrupt is restarted.
+However, many systems contain a hardware (or half-hardware) implemented unit
+translations
+Then, in case of a miss in TLB, the hardware block for searching for translation in memory comes into play,
+and only if this block doesn't detect the desired translation,
+an interrupt occurs and a system (software) miss handler is called.
+</p>
+
+<p>If the processor implements an automatic search block for translations in memory,
+then the format of individual translation records, the format of the translation table as a whole,
+and the search algorithm in the translation table ceases to be the free choice of the operating system.
+At the same time, the system (owned by the OS) translation structures should work in close cooperation with the hardware translation search unit.
+</p>
+
+<p><def>Page Table Walker</def> (PTW) is a hardware unit for
+independent search for translations in RAM in case of their absence in the TLB.
+PTW is designed to increase the performance of a virtual address translation system.
+</p>
+
+<p><def>Page Table</def> (PT) is a translation table in memory,
+viewable by the PTW hardware unit (must be configured according to the requirements of the PTW equipment).
+</p>
+
+<p>The processor PTW block can be (optionally) configured to search for translation in PT after a failed search in the TLB for instructions or data.
+PTW unit provides a significant increase in productivity by reducing
+the number of interrupts (and therefore delays and cleanup of the processor pipeline),
+caused by misses in the TLB, and by ensuring the parallel operation of the PTW block
+to populate the TLB translation cache at the same time as other processor actions.</p>
+
+<p>To organize a page table in memory, traditionally in different architectures, the following schemes are used with varying success:
+</p>
+
+<p><strong>top-down</strong> is a traditional multi-level translation search scheme based on direct downward parsing of a virtual address,
+when each level of the table tree is directly indexed by the next portion of the virtual address.
+The easiest way for a hardware implementation. All tree tables are placed in physical memory.
+The number of memory accesses for searching for translation is equal to the number of levels (depth of the tree) - 2 for X86, 3 for DEC Alpha, 4 for X64, 5-6 for IBM zSeries.
+It has problems with sparseness and fragmentation, limited support for variable page sizes.
+It takes up too much space for translation tables (proportional to the size of virtual memory)
+and inefficiently uses table space with large fragmentation.
+</p>
+
+<p><strong>guarded top-down</strong> is an improved multi-level translation search scheme based on direct downward parsing of a virtual address,
+when each level of the table tree is directly indexed by the next portion of the virtual address, and omissions of some levels are possible.
+Harder for hardware implementation. All tree tables are placed in physical memory.
+The number of memory accesses for translation search may be less than the maximum number of levels.
+Reduces problems with sparseness and fragmentation, limited support for variable page sizes.
+</p>
+
+<p><strong>bottom-up</strong> is a scheme of the reverse recursive ascending order of viewing translation tables,
+when recursive misses are used in one large linear table located in virtual memory.
+Requires hardware implementation of nested interrupts.
+The number of memory accesses for searching for a translation depends on the number of recursive misses in the TLB and, at best, is 1,
+but in the worst case, it is proportional to the top-down method.
+Has problems with sparseness and fragmentation, limited support for variable page sizes.
+It takes up too much space for translation tables (in the worst case, it is proportional to the size of virtual memory)
+and inefficiently uses table space with large fragmentation.
+</p>
+
+<p><strong>inverted hash page table</strong> of pages.
+Its size is proportional to the size of physical (rather than virtual) memory and doesn't depend on the degree of fragmentation of virtual space.
+The number of memory accesses for translation search doesn't depend on the size of the page table and,
+if the hash function is correctly selected and the hash table size is usually 1.
+It copes well with sparseness and fragmentation, limited support for variable page sizes.
+It caches poorly when looking for translations for neighboring pages.
+</p>
+
+<p>In the architecture <archname/>, a multi-level translation search scheme was chosen to implement the page table
+based on the direct top-down order of viewing the translation tables,
+when each next level is directly indexed by a new portion of the virtual address.
+The number of memory accesses for translation search is equal to the number of levels (variable, currently 3 levels).
+The page table is located in the physical memory space as a multi-level structure of service tables.
+</p>
+
+<reg_table>
+<caption>Virtual address: 16KiB pages and possible translation levels</caption>
+<bits64/>
+<reg_row>
+    <reserved size="17">sign extension</reserved>
+    <imm size="11">11 bits</imm>
+    <imm size="11">11 bits</imm>
+    <imm size="11">11 bits</imm>
+    <imm size="14">16 KiB page offset</imm>
+</reg_row>
+</reg_table>
+
+<p>In the event of a miss in the TLB translation hardware cache (lack of the necessary record), the hardware translation search block in memory comes into play,
+and if this block doesn't find the required translation, an interrupt occurs and the program miss handler is called.
+</p>
+
+<p>Special register <regname>page table address</regname> (<reg>pta</reg>)
+defines the search parameters for translation in memory for the virtual space,
+describes the location and size of the PT root page in the address space.
+The operating system must ensure that page tables are aligned naturally.
+</p>
+
+<reg_table>
+<caption>Special register <reg>pta</reg> (root level) and translation records for the next levels</caption>
+<bits64/>
+<reg_row>
+    <reserved size="16">reserved</reserved>
+    <imm size="36">ppn</imm>
+    <reserved size="9">0</reserved>
+    <bitfield size="3">mod</bitfield>
+</reg_row>
+<reg_row>
+    <reserved size="16">reserved</reserved>
+    <imm size="36">ppn</imm>
+    <bitfield size="4">ma</bitfield>
+    <reserved size="6">0</reserved>
+    <bitfield>s</bitfield>
+    <bitfield>v</bitfield>
+</reg_row>
+<reg_row>
+    <reserved size="16">reserved</reserved>
+    <imm size="36">ppn</imm>
+    <bitfield size="4">ma</bitfield>
+    <reserved size="6">0</reserved>
+    <bitfield>s</bitfield>
+    <bitfield>v</bitfield>
+</reg_row>
+<reg_row>
+    <reserved size="16">reserved</reserved>
+    <imm size="36">ppn</imm>
+    <bitfield size="6">ar</bitfield>
+    <bitfield>g</bitfield>
+    <bitfield>d</bitfield>
+    <bitfield>a</bitfield>
+    <bitfield>p</bitfield>
+    <bitfield>0</bitfield>
+    <bitfield>v</bitfield>
+</reg_row>
+</reg_table>
+
+<table>
+<caption>Translation record fields</caption>
+<thead>
+<tr>
+<th>Field</th>
+<th>Bit</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>mod</td>
+<td>3</td>
+<td>Translation mode: 0 - no translation, 1,2,3 and so on - the number of indexing levels when searching.
+</td>
+</tr>
+<tr>
+<td>v</td>
+<td>1</td>
+<td>Bit of validity.
+For intermediate and final formats, if 1 - the page entry is valid, otherwise a search error occurs.
+</td>
+</tr>
+<tr>
+<td>ppn</td>
+<td>varied, 30-50</td>
+<td>Physical page number if <regfield>p</regfield>=1, or other system data if <regfield>p</regfield>=0.
+</td>
+</tr>
+<tr>
+<td>s</td>
+<td>1</td>
+<td>Superpage bit, stop the search (final format instead of intermediate).
+</td>
+</tr>
+<tr>
+<td>p</td>
+<td>1</td>
+<td>The page is in memory
+</td>
+</tr>
+<tr><td>ma</td><td>4</td><td>Page Physical Attributes. Should be defined per superpage.</td></tr>
+<tr><td>a</td><td>1</td><td>Access Bit</td></tr>
+<tr><td>d</td><td>1</td><td>Dirty bit - indicates whether there were any changes in the page.
+When a page is pushed into a swap, it may not be saved if the page is already in the swap and has not changed.
+</td>
+</tr>
+<tr>
+<td>ar</td>
+<td>6</td>
+<td>Permissions
+</td>
+</tr>
+<tr>
+<td>rv</td>
+<td></td>
+<td>Reserved (must be zeros)
+</td>
+</tr>
+</tbody>
+</table>
+
+<p>The format of the page tables should take into account the mapping of virtual addresses to a physical address space of a total depth of 64 bits.
+</p>
+
+</section>
+
+<section id="mem_tlb_instructions">
+<title>Translation instructions</title>
+
+<p>List of translation instructions.
+The processor doesn't guarantee that the modification of translation resources is observed by subsequent samples of instructions or by accessing data in memory.
+The software should provide serialization
+(serialization by issuing a synchronizing barrier instruction)
+according to instructions before any dependent selection of instructions and serialization according to data before any dependent reference to data.</p>
+
+<table>
+<caption>Instructions that modifies TLB</caption>
+<thead><tr>
+<th>Syntax</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr><td><pre><mim>ptc</mim>     ra,rb,rc</pre></td><td>Purge translations cache</td></tr>
+<tr><td><pre><mim>ptri</mim>    rb,rc</pre></td><td>Clear the instruction translation register. ITR <larr/> <param>rc</param>, <reg>ifa</reg></td></tr>
+<tr><td><pre><mim>ptrd</mim>    rb,rc</pre></td><td>Cleans the data translation register. DTR <larr/> <param>rc</param>, <reg>ifa</reg></td></tr>
+<tr><td><pre><mim>mprobe</mim>  ra,rb,rc</pre></td><td>Returns page permissions for the privilege level <param>rc</param></td></tr>
+<tr><td><pre><mim>tpa</mim>     ra,rb,rc</pre></td><td>Translates the virtual address to the physical address</td></tr>
+</tbody></table>
+
+<p>The <mim>ptc</mim> instruction invalidates all translations from the local processor cache specified with the address and ASID.
+The processor determines the ASID-specifiec page that contains that address and invalidates all TLB entries for that page.
+The instruction deletes all translations from both translation caches that intersect with the specified address range.
+If the paging structures map the linear address using a large pages and/or there are multiple TLB entries for that page, the instruction invalidates all of them.
+</p>
+
+<slot_table>
+<caption>Format of instructions <mim>ptc</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>base</gpr>
+    <gpr>address</gpr>
+    <gpr>asid</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<p>Translation records can be inserted into fixed translation registers by instructions
+<mim>set_itr</mim> (<miname>set instruction translation register</miname>) and
+<mim>set_dtr</mim> (<miname>set data translation register</miname>).
+The data for the inserted translation is taken from the first register argument of the instruction and special registers <reg>ifa</reg>.
+The translation register number is taken from the second argument register.
+</p>
+
+<p>Translation records can be deleted from translation registers by instructions
+<mim>ptri</mim> (<miname>Purge Translation register for Instruction</miname>) and
+<mim>ptrd</mim> (<miname>Purge Translation register for Data</miname>).
+The first argument is the base address register number, the second argument is the register number that stores the translation register number.
+The instructions also delete all translations from both translation caches that intersect with the specified address range.
+The instructions only remove translations from the local processor registers.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>set_itr</mim>, <mim>set_dtr</mim>, <mim>ptri</mim>, <mim>ptrd</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>target</gpr>
+    <gpr>base</gpr>
+    <gpr>asid</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<p>Permissions for a virtual page can be specified by instructions
+<mim>mprobe</mim> (<miname>memory probe</miname>),
+<mim>mprobef</mim> (<miname>memory probe faulting</miname>).
+The <mim>mprobe</mim> instruction for a given base address and privilege level returns the available rights mask.
+The privilege level is set as a value in the register.
+The <mim>mprobef</mim> instruction doesn't return rights, but tests for the necessary access rights for a given base address and privilege level.
+If there are no rights, the <mim>mprobef</mim> instruction raises a <error>Data Access rights fault</error> error, otherwise the instruction doesn'thing.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>mprobe</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>base</gpr>
+    <gpr>pl</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<slot_table>
+<caption>Instruction format <mim>mprobef</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <regzero>0</regzero>
+    <gpr>base</gpr>
+    <gpr>pl</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<p>Privileged instruction <mim>tpa</mim> (<miname>translate to physical address</miname>)
+returns the physical address corresponding to the given virtual address.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>tpa</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>base</gpr>
+    <gpr>asid</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<p>The common sequence of TLB/PT search looks like this.
+If the TLB search fails, if the PTW is blocked (<regfield>pta.v</regfield>=0), a miss error in ITLB/DTLB occurs.
+If PTW is enabled (<regfield>pta.v</regfield>=1), then PTW calculates the index for access to the root page table, and tries to find the missing translation in the PT memory,
+looking through the table tree.
+If additional misses in the TLB occur during PTW operation, PT generates an error.
+If the PTW doesn't find the required translation in the memory (that is, the PT doesn't contain it), or the search is interrupted, an instruction/data miss TLB error occurs.
+Otherwise, the record is loaded into ITC or DTC.
+The processor can upload records to ITC or DTC, even if the program did not require translation.
+</p>
+
+<p>Insertions from PT to TC follow the same <quote><em>cleanup rules before inserting</em></quote> as program inserts.
+PT insertion of entries that exist in TR registers is not allowed.
+Specifically, PT can search for any virtual addressing, but if the address is mapped to TR, such a translation should not be inserted into the TC.
+The software should not be placed in PT translations that intersect with current TR translations.
+An insert from PT may result in a machine abnormal termination if there is overlap between the TR and the inserted PT record.
+</p>
+
+<p>After the translation record is loaded into the TLB, additional translation errors are checked (in order of priority):
+lack of rights to the page, enabled access bit, enabled dirty bit, lack of a page in memory.
+</p>
+
+</section>
+
+</chapter>

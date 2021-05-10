@@ -1,0 +1,593 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    targetNamespace="http://www.example.com/postrisc"
+    xmlns:doc="http://www.example.com/postrisc">
+
+    <!-- empty elements
+         http://www.example.com/xml/postrisc
+    -->
+    <xs:element name="br"> <xs:complexType/> </xs:element>
+    <xs:element name="shy"> <xs:complexType/> </xs:element>
+    <xs:element name="nbsp"> <xs:complexType/> </xs:element>
+    <xs:element name="sect"> <xs:complexType/> </xs:element>
+    <xs:element name="copy"> <xs:complexType/> </xs:element>
+    <xs:element name="laquo"> <xs:complexType/> </xs:element>
+    <xs:element name="raquo"> <xs:complexType/> </xs:element>
+    <xs:element name="not"> <xs:complexType/> </xs:element>
+    <xs:element name="plusmn"> <xs:complexType/> </xs:element>
+    <xs:element name="times"> <xs:complexType/> </xs:element>
+    <xs:element name="ndash"> <xs:complexType/> </xs:element>
+    <xs:element name="mdash"> <xs:complexType/> </xs:element>
+    <xs:element name="lsquo"> <xs:complexType/> </xs:element>
+    <xs:element name="rsquo"> <xs:complexType/> </xs:element>
+    <xs:element name="sbquo"> <xs:complexType/> </xs:element>
+    <xs:element name="ldquo"> <xs:complexType/> </xs:element>
+    <xs:element name="rdquo"> <xs:complexType/> </xs:element>
+    <xs:element name="bdquo"> <xs:complexType/> </xs:element>
+    <xs:element name="lsaquo"> <xs:complexType/> </xs:element>
+    <xs:element name="rsaquo"> <xs:complexType/> </xs:element>
+    <xs:element name="minus"> <xs:complexType/> </xs:element>
+    <xs:element name="hellip"> <xs:complexType/> </xs:element>
+    <xs:element name="larr"> <xs:complexType/> </xs:element>
+    <xs:element name="uarr"> <xs:complexType/> </xs:element>
+    <xs:element name="rarr"> <xs:complexType/> </xs:element>
+    <xs:element name="darr"> <xs:complexType/> </xs:element>
+    <xs:element name="harr"> <xs:complexType/> </xs:element>
+    <xs:element name="ne"> <xs:complexType/> </xs:element>
+    <xs:element name="equiv"> <xs:complexType/> </xs:element>
+    <xs:element name="lt"> <xs:complexType/> </xs:element>
+    <xs:element name="gt"> <xs:complexType/> </xs:element>
+    <xs:element name="le"> <xs:complexType/> </xs:element>
+    <xs:element name="ge"> <xs:complexType/> </xs:element>
+    <xs:element name="oplus"> <xs:complexType/> </xs:element>
+    <xs:element name="lshift"> <xs:complexType/> </xs:element>
+    <xs:element name="rshift"> <xs:complexType/> </xs:element>
+    <xs:element name="archname"> <xs:complexType/> </xs:element>
+    <xs:element name="slotbits"> <xs:complexType/> </xs:element>
+    <xs:element name="extslotbits"> <xs:complexType/> </xs:element>
+    <xs:element name="bits16"> <xs:complexType/> </xs:element>
+    <xs:element name="bits32"> <xs:complexType/> </xs:element>
+    <xs:element name="hibits"> <xs:complexType/> </xs:element>
+    <xs:element name="HiBits"> <xs:complexType/> </xs:element>
+    <xs:element name="bits64"> <xs:complexType/> </xs:element>
+
+    <xs:element name="opc"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="opx"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="raopx"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="misc_opx"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="misc_opx_res"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="fused_opx"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="nullify_opx"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="branch_opx"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="branch_opx_res"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="gpr"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="nmask"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="spr"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="rrn"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="cmod"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="pair"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="pred"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="sf"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="scale"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="indexed_opx"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="stride"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="idisp"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="bitpos"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="noargs"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="framesize"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="cbimm"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="jump"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="call"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="branch"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="bit"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="cacheopx"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="binimm"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="mid_binimm"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="regzero"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="res21"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="loop_stride"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="loop_disp"> <xs:complexType mixed="true"/> </xs:element>
+
+    <xs:element name="imm">
+        <xs:complexType mixed="true">
+            <xs:attribute name="width" type="xs:string" use="optional"/>
+            <xs:attribute name="size" type="xs:positiveInteger" use="optional"/>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="mim"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="miname"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="reg"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="regname"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="regfield"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="param"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="function"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="type"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="relocation"> <xs:complexType mixed="true"/> </xs:element>
+
+    <xs:element name="link">
+        <xs:complexType>
+            <xs:simpleContent>
+                <xs:extension base="xs:string">
+                     <xs:attribute name="href" type="xs:string" use="required"/>
+                </xs:extension>
+            </xs:simpleContent>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:group name="common_span_elements">
+        <xs:choice>
+            <xs:element ref="doc:quote"/>
+            <xs:element ref="doc:link"/>
+            <xs:element ref="doc:label"/>
+            <xs:element ref="doc:sup"/>
+            <xs:element ref="doc:sub"/>
+            <xs:element ref="doc:em"/>
+            <xs:element ref="doc:strong"/>
+            <xs:element ref="doc:comment"/>
+            <xs:element ref="doc:bold"/>
+            <xs:element ref="doc:hex"/>
+            <xs:element ref="doc:binary"/>
+            <xs:element ref="doc:formula"/>
+            <xs:element ref="doc:error"/>
+            <xs:element ref="doc:def"/>
+            <xs:element ref="doc:param"/>
+            <xs:element ref="doc:type"/>
+            <xs:element ref="doc:var"/>
+            <xs:element ref="doc:function"/>
+            <xs:element ref="doc:archname"/>
+            <xs:element ref="doc:mim"/>
+            <xs:element ref="doc:miname"/>
+            <xs:element ref="doc:reg"/>
+            <xs:element ref="doc:regname"/>
+            <xs:element ref="doc:regfield"/>
+            <xs:element ref="doc:segment"/>
+            <xs:element ref="doc:psection"/>
+            <xs:element ref="doc:pregion"/>
+            <xs:element ref="doc:nbsp"/>
+            <xs:element ref="doc:sect"/>
+            <xs:element ref="doc:copy"/>
+            <xs:element ref="doc:laquo"/>
+            <xs:element ref="doc:not"/>
+            <xs:element ref="doc:plusmn"/>
+            <xs:element ref="doc:raquo"/>
+            <xs:element ref="doc:times"/>
+            <xs:element ref="doc:ndash"/>
+            <xs:element ref="doc:mdash"/>
+            <xs:element ref="doc:lsquo"/>
+            <xs:element ref="doc:rsquo"/>
+            <xs:element ref="doc:sbquo"/>
+            <xs:element ref="doc:ldquo"/>
+            <xs:element ref="doc:rdquo"/>
+            <xs:element ref="doc:bdquo"/>
+            <xs:element ref="doc:lsaquo"/>
+            <xs:element ref="doc:rsaquo"/>
+            <xs:element ref="doc:minus"/>
+            <xs:element ref="doc:hellip"/>
+            <xs:element ref="doc:larr"/>
+            <xs:element ref="doc:uarr"/>
+            <xs:element ref="doc:rarr"/>
+            <xs:element ref="doc:darr"/>
+            <xs:element ref="doc:harr"/>
+            <xs:element ref="doc:ne"/>
+            <xs:element ref="doc:equiv"/>
+            <xs:element ref="doc:lt"/>
+            <xs:element ref="doc:gt"/>
+            <xs:element ref="doc:le"/>
+            <xs:element ref="doc:ge"/>
+            <xs:element ref="doc:oplus"/>
+            <xs:element ref="doc:lshift"/>
+            <xs:element ref="doc:rshift"/>
+            <xs:element ref="doc:relocation"/>
+        </xs:choice>
+    </xs:group>
+
+   <xs:complexType name="span" mixed="true">
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+            <xs:group ref="doc:common_span_elements"/>
+        </xs:choice>
+    </xs:complexType>
+
+    <xs:element name="em" type="doc:span" />
+    <xs:element name="def" type="doc:span" />
+    <xs:element name="quote" type="doc:span" />
+    <xs:element name="strong" type="doc:span" />
+    <xs:element name="bold" type="doc:span" />
+    <xs:element name="var" type="doc:span" />
+    <xs:element name="sup" type="doc:span" />
+    <xs:element name="sub" type="doc:span" />
+    <xs:element name="formula" type="doc:span" />
+    <xs:element name="error" type="doc:span" />
+
+    <xs:complexType name="para" mixed="true">
+        <xs:complexContent>
+            <xs:extension base="doc:span">
+                <xs:attribute name="id" type="xs:ID" use="optional"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+
+    <xs:element name="p"       type="doc:para" />
+    <xs:element name="note"    type="doc:para" />
+    <xs:element name="title"   type="doc:para" />
+    <xs:element name="code"    type="doc:para" />
+    <xs:element name="caption" type="doc:para" />
+    <xs:element name="pre"     type="doc:para" />
+
+    <xs:complexType name="listitem" mixed="true">
+        <xs:complexContent>
+            <xs:extension base="doc:para">
+                <xs:choice minOccurs="0" maxOccurs="unbounded">
+                    <xs:group ref="doc:common_span_elements"/>
+                    <xs:element ref="doc:ul"/>
+                    <xs:element ref="doc:ol"/>
+                    <xs:element ref="doc:slot_table"/>
+                </xs:choice>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+
+    <xs:element name="li" type="doc:listitem" />
+
+    <xs:element name="label">
+        <xs:complexType>
+            <xs:attribute name="name" type="xs:string" use="required"/>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="ul">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="doc:li" maxOccurs="unbounded"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="ol">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="doc:li" maxOccurs="unbounded"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:group name="common_text_elements">
+        <xs:choice>
+            <xs:element ref="doc:label"/>
+            <xs:element ref="doc:p"/>
+            <xs:element ref="doc:note"/>
+            <xs:element ref="doc:pre"/>
+            <xs:element ref="doc:table"/>
+            <xs:element ref="doc:slot_table"/>
+            <xs:element ref="doc:reg_table"/>
+            <xs:element ref="doc:ul"/>
+            <xs:element ref="doc:ol"/>
+            <xs:element ref="doc:code"/>
+            <xs:element ref="doc:comment"/>
+        </xs:choice>
+    </xs:group>
+
+    <xs:element name="segment">  <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="psection"> <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="pregion">  <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="hex">      <xs:complexType mixed="true"/> </xs:element>
+    <xs:element name="binary">   <xs:complexType mixed="true"/> </xs:element>
+
+    <xs:element name="table">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="doc:caption" minOccurs="0" maxOccurs="1"/>
+                <xs:choice>
+                    <xs:choice maxOccurs="unbounded">
+                        <xs:element ref="doc:thead"/>
+                        <xs:element ref="doc:tbody"/>
+                        <xs:element ref="doc:tfoot"/>
+                    </xs:choice>
+                    <xs:choice maxOccurs="unbounded">
+                        <xs:element ref="doc:slotbits"/>
+                        <xs:element ref="doc:slot"/>
+                        <xs:element ref="doc:tr"/>
+                    </xs:choice>
+                </xs:choice>
+            </xs:sequence>
+            <xs:attribute name="width" type="xs:string" use="optional"/>
+            <xs:attribute name="class" type="xs:string" use="optional"/>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="thead">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="doc:tr" minOccurs="1" maxOccurs="unbounded"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="tfoot">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="doc:tr" minOccurs="1" maxOccurs="unbounded"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="tbody">
+        <xs:complexType>
+            <xs:choice maxOccurs="unbounded">
+                <xs:element ref="doc:tr"/>
+                <xs:element ref="doc:reg_row"/>
+            </xs:choice>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:group name="common_isa_elements">
+            <xs:sequence>
+                <xs:choice>
+                    <xs:element ref="doc:opc"/>
+                    <xs:element ref="doc:pair"/>
+                    <xs:element ref="doc:pred"/>
+                    <xs:element ref="doc:opx"/>
+                    <xs:element ref="doc:res21"/>
+                    <xs:choice>
+                        <xs:element ref="doc:raopx"/>
+                        <xs:element ref="doc:cacheopx"/>
+                    </xs:choice>
+                    <xs:choice>
+                        <xs:element ref="doc:branch_opx_res"/>
+                        <xs:element ref="doc:branch_opx"/>
+                    </xs:choice>
+                    <xs:element ref="doc:gpr"/>
+                    <xs:element ref="doc:spr"/>
+                    <xs:element ref="doc:rrn"/>
+                    <xs:sequence>
+                        <xs:element ref="doc:nmask"/>
+                        <xs:element ref="doc:nmask"/>
+                        <xs:element ref="doc:nullify_opx"/>
+                    </xs:sequence>
+                    <xs:element ref="doc:imm"/>
+                    <xs:element ref="doc:cbimm"/>
+                    <xs:element ref="doc:scale"/>
+                    <xs:element ref="doc:indexed_opx"/>
+                    <xs:element ref="doc:stride"/>
+                    <xs:element ref="doc:idisp"/>
+                    <xs:element ref="doc:bitpos"/>
+                    <xs:sequence>
+                        <xs:choice minOccurs="0" maxOccurs="unbounded">
+                            <xs:element ref="doc:misc_opx_res"/>
+                        </xs:choice>
+                        <xs:element ref="doc:misc_opx"/>
+                    </xs:sequence>
+                    <xs:element ref="doc:fused_opx"/>
+                    <xs:element ref="doc:loop_stride"/>
+                    <xs:element ref="doc:loop_disp"/>
+                    <xs:choice>
+                        <xs:element ref="doc:binimm"/>
+                        <xs:element ref="doc:mid_binimm"/>
+                        <xs:element ref="doc:res21"/>
+                    </xs:choice>
+                    <xs:element ref="doc:sf"/>
+                    <xs:element ref="doc:regzero"/>
+                    <xs:element ref="doc:reserved"/>
+                    <xs:element ref="doc:ignored"/>
+                    <xs:element ref="doc:noargs"/>
+                    <xs:element ref="doc:bitfield"/>
+                    <xs:choice>
+                        <xs:element ref="doc:jump"/>
+                        <xs:element ref="doc:call"/>
+                    </xs:choice>
+                    <xs:element ref="doc:branch"/>
+                    <xs:element ref="doc:framesize"/>
+                </xs:choice>
+            </xs:sequence>
+    </xs:group>
+
+    <xs:element name="tr">
+        <xs:complexType>
+            <xs:choice>
+                <xs:sequence>
+                    <xs:choice maxOccurs="unbounded">
+                        <xs:element ref="doc:td"/>
+                        <xs:element ref="doc:bit"/>
+                        <xs:element ref="doc:cellc"/>
+                        <xs:group ref="doc:common_isa_elements"/>
+                    </xs:choice>
+                </xs:sequence>
+                <xs:sequence>
+                    <xs:element ref="doc:th" maxOccurs="unbounded"/>
+                </xs:sequence>
+            </xs:choice>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:complexType name="table_cell" mixed="true">
+        <xs:complexContent>
+            <xs:extension base="doc:para">
+                <xs:choice minOccurs="0" maxOccurs="unbounded">
+                    <xs:group ref="doc:common_span_elements"/>
+                    <xs:element ref="doc:code"/>
+                    <xs:element ref="doc:p"/>
+                    <xs:element ref="doc:br"/>
+                    <xs:element ref="doc:pre"/>
+                </xs:choice>
+                <xs:attribute name="width" type="xs:string" use="optional"/>
+                <xs:attribute name="class" type="xs:string" use="optional"/>
+                <xs:attribute name="colspan" type="xs:positiveInteger" use="optional"/>
+                <xs:attribute name="rowspan" type="xs:positiveInteger" use="optional"/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+
+    <xs:element name="td" type="doc:table_cell"/>
+    <xs:element name="th" type="doc:table_cell"/>
+    <xs:element name="cellc" type="doc:table_cell"/>
+
+    <xs:element name="reg_table">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="doc:caption" minOccurs="0" maxOccurs="1"/>
+                <xs:choice minOccurs="0" maxOccurs="1">
+                    <xs:element ref="doc:bits16"/>
+                    <xs:element ref="doc:bits32"/>
+                    <xs:element ref="doc:hibits"/>
+                    <xs:element ref="doc:bits64"/>
+                    <xs:element ref="doc:HiBits"/>
+                </xs:choice>
+                <xs:sequence>
+                    <xs:choice>
+                        <xs:element ref="doc:tr"/>
+                        <xs:element ref="doc:reg_row"/>
+                    </xs:choice>
+                    <xs:choice minOccurs="0" maxOccurs="unbounded">
+                        <xs:element ref="doc:tr"/>
+                        <xs:element ref="doc:bits16"/>
+                        <xs:element ref="doc:bits32"/>
+                        <xs:element ref="doc:reg_row"/>
+                    </xs:choice>
+                </xs:sequence>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="reg_row">
+        <xs:complexType>
+            <xs:choice maxOccurs="unbounded">
+                <xs:element ref="doc:td"/>
+                <xs:element ref="doc:opc"/>
+                <xs:element ref="doc:rrn"/>
+                <xs:element ref="doc:imm"/>
+                <xs:element ref="doc:regzero"/>
+                <xs:element ref="doc:bitfield"/>
+                <xs:element ref="doc:reserved"/>
+                <xs:element ref="doc:ignored"/>
+            </xs:choice>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="slot_table">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="doc:caption" minOccurs="0" maxOccurs="1"/>
+                <xs:element ref="doc:tr" minOccurs="0" maxOccurs="1"/>
+                <xs:choice minOccurs="0" maxOccurs="1">
+                    <xs:element ref="doc:slotbits"/>
+                    <xs:element ref="doc:extslotbits"/>
+                </xs:choice>
+                <xs:element ref="doc:slot" maxOccurs="unbounded"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="slot">
+        <xs:complexType>
+            <xs:choice minOccurs="1" maxOccurs="unbounded">
+                <xs:group ref="doc:common_isa_elements"/>
+            </xs:choice>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="comment">
+        <xs:complexType mixed="true">
+            <xs:sequence maxOccurs="unbounded">
+                <xs:choice>
+                    <xs:element ref="doc:section"/>
+                    <xs:element ref="doc:subsection"/>
+                    <xs:group ref="doc:common_text_elements"/>
+                </xs:choice>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="bitfield">
+        <xs:complexType mixed="true">
+            <xs:attribute name="size" type="xs:positiveInteger" use="optional"/>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="ignored">
+        <xs:complexType mixed="true">
+            <xs:attribute name="size" type="xs:positiveInteger" use="optional"/>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="reserved">
+        <xs:complexType mixed="true">
+            <xs:attribute name="size" type="xs:positiveInteger" use="optional"/>
+            <xs:attribute name="rowspan" type="xs:positiveInteger" use="optional"/>
+        </xs:complexType>
+    </xs:element>
+
+    <!-- preface: title?, (common_text)+
+    -->
+    <xs:element name="preface">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="doc:title" minOccurs="0" maxOccurs="1"/>
+                <xs:sequence minOccurs="0" maxOccurs="unbounded">
+                    <xs:choice>
+                        <xs:group ref="doc:common_text_elements"/>
+                    </xs:choice>
+                </xs:sequence>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <!-- section: title, (subsection | common_text)+
+    -->
+    <xs:element name="subsection">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="doc:title"/>
+                <xs:sequence minOccurs="1" maxOccurs="unbounded">
+                    <xs:choice>
+                        <xs:group ref="doc:common_text_elements"/>
+                    </xs:choice>
+                </xs:sequence>
+            </xs:sequence>
+            <xs:attribute name="id" type="xs:ID" use="required"/>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="section">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="doc:title" minOccurs="1" maxOccurs="1"/>
+                <xs:choice minOccurs="1" maxOccurs="unbounded">
+                    <xs:element ref="doc:subsection"/>
+                    <xs:choice>
+                        <xs:group ref="doc:common_text_elements"/>
+                    </xs:choice>
+                </xs:choice>
+            </xs:sequence>
+            <xs:attribute name="id" type="xs:ID" use="required"/>
+        </xs:complexType>
+    </xs:element>
+
+    <!-- chapter: title, preface?, section+
+    -->
+    <xs:element name="chapter">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="doc:title" minOccurs="1" maxOccurs="1"/>
+                <xs:element ref="doc:preface" minOccurs="0" maxOccurs="1"/>
+                <xs:sequence minOccurs="1" maxOccurs="unbounded">
+                    <xs:element ref="doc:section"/>
+                    <xs:element ref="doc:comment" minOccurs="0" maxOccurs="1"/>
+                </xs:sequence>
+            </xs:sequence>
+            <xs:attribute name="id" type="xs:ID" use="required"/>
+        </xs:complexType>
+    </xs:element>
+
+    <!-- book: preface, chapter+
+    -->
+    <xs:element name="book">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element ref="doc:preface"/>
+                <xs:element ref="doc:chapter" minOccurs="1" maxOccurs="unbounded"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+</xs:schema>

@@ -1,0 +1,622 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<chapter xmlns="http://www.example.com/postrisc" id="cpu_extended">
+<title>Extended instruction set</title>
+
+<preface>
+<p>This chapter describes the <em>extended</em> virtual processor instruction set which was not included in the basic set.
+</p>
+</preface>
+
+<section id = "load_address">
+<title>Helper Address Calculation Instructions</title>
+
+<p>To simplify addressing, several instructions have been introduced that calculate effective addresses without going to memory.
+The <mim>lda_xi64</mim>, <mim>lda_xu64</mim>, <mim>lda_xi32</mim>, <mim>lda_xu32</mim> instructions return the effective address as indexed addressing.</p>
+
+<slot_table>
+<caption>Instruction format <mim>lda_x</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>base</gpr>
+    <gpr>index</gpr>
+    <scale>scale</scale>
+    <indexed_opx>opx</indexed_opx>
+    <idisp>simm7</idisp>
+</slot>
+</slot_table>
+
+<p>The instruction <mim>lda_r</mim> (<miname>compute address relative</miname>) calculates the <reg>ip</reg>-relative base address as jump instruction.
+The first argument is the number of the result register, the second is the distance in the instruction bundles from the current position
+(in assembler, this is a label in the code section, or a label in the immutable data section, aligned on a 16-byte boundary).
+It is used to get the base address of immutable data from a code section, function address or label.
+The instruction doesn't generate interrupts.
+</p>
+
+<code>lda_r dst, label</code>
+
+<p>This instruction is necessary for position-independent code to get the absolute address of objects,
+stored at a fixed distance from the current position, for example, intra-module procedures or unchanged local module data.
+On systems like MAS (<em>Multiple Address Spaces</em>) with multiple address spaces,
+where the module's private data is stored at a fixed distance from the code section,
+it can also be used to obtain the base absolute address of the module's private data.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>lda_r</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <jump>simm28x16</jump>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <reserved size="10">0</reserved>
+    <imm size="32">simm60x16 (28+32)</imm>
+</slot>
+</slot_table>
+
+<p>The instruction is formed according to the LDA_R rule.
+The result register is followed by a 28-bit field for encoding the displacement relative to the instruction counter.
+The data block must be aligned with at least a 16-byte boundary, since the displacement expresses the distance in instruction bundles, not bytes.
+The general formula for obtaining the address:</p>
+
+<p><param>dst</param> = <reg>ip</reg> + 16 <times/> sign_extend(<param>offset</param>)</p>
+
+<p>Displacement field 28 bits long (64 bits for double instruction) after sign extension
+and left shift by 4 positions is added to the contents of the instruction counter <reg>ip</reg>,
+to produce a 64-bit effective address.
+The maximum distance for a one-slot instruction is 2 GiB on either side of the instruction counter.
+The <mim>lda_r</mim> instruction allows the continuation of the immediate value in the instruction code
+to the next slot of the bundle with the formation of a double-slot instruction.</p>
+
+<p>The <mim>lda_r</mim> instruction might be used to compute address of the static module data.
+But specially for this the another instruction <mim>lda_iprel</mim> is intended (compute address forward relative),
+which allow to address any address, not only 16-byte bundle-aligned.
+It computes effective address same as all <reg>ip</reg>-relative load/store instructions.
+This reduces the maximal available distance 16 times, so only forward references with unsigned displacement are possible, so distance reduction is 8 times only.
+To use <mim>lda_iprel</mim>, the distance from the current bundle to the data should not exceed 256 MiB.
+Usually 256 MiB is enough for any module.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>lda_iprel</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <jump>uimm28</jump>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <reserved size="6">0</reserved>
+    <imm size="36">uimm64(28+36)</imm>
+</slot>
+</slot_table>
+
+<p><param>dst</param> = <reg>ip</reg> + zero_extend(<param>label</param>)</p>
+
+
+<p>If a constant with a sign is fits in 28 bits, then it's more efficient to use the <mim>ld_imm</mim> instruction,
+and if fits in 56 bits then <mim>ld_imm</mim> along with <mim>lda_n</mim>.
+However, when loading constants in bulk, a single <mim>lda_r</mim> instruction falls on several loading instructions,
+and then a pair of <mim>ld_imm</mim> and <mim>lda_n</mim> <ndash/> instructions is less compact than a single <mim>ld_u32</mim> instruction.
+As for loading 8-byte integer constants, real constants, vector constants, then
+using <mim>lda_r</mim> along with <mim>ld_u64</mim>, <mim>ld_u32</mim> and other download instructions,
+is the recommended, and often the only possible way to load such constants.
+</p>
+
+<p>Base plus displacement addressing allows 1 MiB addressing to both sides of the base address when using one-slot instructions (21-bit displacement).
+If the object is beyond 1 MiB, you will have to use double-slot instructions.
+But, according to the principle of <strong>access locality</strong>,
+with a high probability the program will access next objects located near the first one.
+This fact can be used, and once calculate the base address, from which several necessary objects
+are located no further than 1 MiB, and then use one-slot instructions to address them.
+</p>
+
+<p>Nearest Base Address Calculation Instructions <mim>lda_n</mim> (<miname>compute address near</miname>).
+It is used to optimize local (by place and time) memory access without using double-slot instructions and long displacements.
+Another nearest base address instruction <mim>lda_nrc</mim> (<miname>compute address near relative consistent</miname>).
+</p>
+
+<code>lda_n   dst, base, simm
+lda_nrc dst, base, simm</code>
+
+<p>First argument is the result register number,
+second is base address register number,
+the third is an immediate value is 14 bits long (or 56 bits for a long instruction), extended to 64 bits.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>lda_n</mim>, <mim>lda_nrc</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>base</gpr>
+    <mid_binimm>simm14</mid_binimm>
+    <fused_opx>opx</fused_opx>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <imm size="42">simm56(14+42)</imm>
+</slot>
+</slot_table>
+
+<p>The target 64-bit address is calculated (for <mim>lda_n</mim> and <mim>lda_nrc</mim>) as:</p>
+
+<p><param>dst</param> = <param>base</param> + (simm14 <lshift/> 20)</p>
+<p><param>dst</param> = <reg>ip</reg> + <param>base</param> + (simm14 <lshift/> 20)</p>
+
+<p>The following example shows how to use the <mim>lda_n</mim> instruction
+to access a group of closely spaced (no more than 512 KiB from each other),
+but far-away data (the distance to the <param>sym</param> object is more than 512 KiB from the base address).
+</p>
+
+<p>Without using <mim>lda_n</mim> (4 double instructions, 8 slots)
+</p>
+
+<code>ld_i32.l  %r1, base, sym + 4
+ld_u32.l %r2, base, sym + 8
+st_i64.l  %r2, base, sym + 16
+ld_u64.l %r3, base, sym + 32</code>
+
+<p>Using <mim>lda_n</mim> (5 single instructions, 5 slots)
+</p>
+
+<code>lda_n   tmp, base, data_hi (sym); put the nearest address in tmp
+ld_i32  g11, tmp, data_lo (sym) +4; tmp addressing
+ld_u32  g12, tmp, data_lo (sym) +8
+st_i64  g12, tmp, data_lo (sym) +16
+ld_u64  g13, tmp, data_lo (sym) +32</code>
+
+</section>
+
+<section id="multprecision">
+<title>Multiprecision arithmetic</title>
+
+<p>For hardware support for long arithmetic, it is advisable to add special instructions.
+In the general case, for intermediate addition/subtraction of parts of high precision numbers
+it is required to specify the incoming carry (borrow), two operands, the result and the outgoing carry (borrow).
+</p>
+
+<p>When explicitly coding all dependencies and not using global flags (which is good for parallel/pipeline execution of instructions)
+it requires 5 parameters: the result, two operands, input and output carry/borrow.
+There is not enough space in the instructions for all five parameters.
+Therefore, the high part of 128-bit registers is used to return the carry/borrow.
+</p>
+
+<p>A special instruction <mim>mulh</mim> (<miname>multiply high</miname>) was introduced for hardware support for multiplying long numbers
+calculating the upper half of a 128-bit product of two 64-bit numbers.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>addc</mim>, <mim>subb</mim>, <mim>mulh</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <gpr>rc</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<slot_table>
+<caption>Instruction format <mim>add_addc</mim>, <mim>sub_subb</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <gpr>rc</gpr>
+    <gpr>rd</gpr>
+    <fused_opx>opx</fused_opx>
+</slot>
+</slot_table>
+
+<p>Syntax:</p>
+<code>addc_u64      ra, rb, rc
+add_addc_u64  ra, rb, rc, rd
+subb_u64      ra, rb, rc
+sub_subb_u64  ra, rb, rc, rd
+mulh          ra, rb, rc
+</code>
+
+<table>
+<caption>Fused instructions</caption>
+<thead><tr>
+<th>Name</th>
+<th>Operation</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr><td><mim>addc_u64</mim></td><td><miname>add to u128</miname></td><td>ra = (u128 zext u64:rb) + (u128 zext u64:rc)</td></tr>
+<tr><td><mim>subb_u64</mim></td><td><miname>subtract to u128</miname></td><td>ra = (u128 zext u64:rb) - (u128 zext u64:rc)</td></tr>
+<tr><td><mim>add_addc_u64</mim></td><td><miname>add 3 with carry</miname></td><td>ra = (u128 zext u64:rb) + (u128 zext u64:rc) + (u128:rd >> 64)</td></tr>
+<tr><td><mim>sub_subb_u64</mim></td><td><miname>subtract 3 with borrow</miname></td><td>ra =  (u128 zext u64:rb) - (u128 zext u64:rc) - (u128:rd >> 64)</td></tr>
+</tbody></table>
+
+<p>
+It is assumed that numbers of arbitrary length are already loaded into the registers.
+For example, the addition of 256-bit numbers will occur as follows:
+</p>
+<code>addc_u64      a1, b1, c1      ; sum of lower parts, first carry-out
+add_addc_u64  a2, b2, c2, a1  ; sum of middles and carry-in, next carry-out
+add_addc_u64  a3, b3, c3, a2  ; sum of middles and carry-in, next carry-out
+add_addc_u64  a4, b4, c4, a3  ; sum of higher and carry-in, last carry-out
+</code>
+
+</section>
+
+<section id="syscall">
+<title>Software interrupts, system calls</title>
+
+<p>The instruction <mim>syscall</mim> (<miname>system call</miname>) does the call to the kernel of the system to process the system request.
+The system call number is obtained from <reg>r1</reg>, arguments from subsequent registers.
+</p>
+
+<p>Unlike interrupts, a system call is an analogue of a function call, and has similarly implemented return from it to the next bundle.
+Therefore, after the instruction <mim>syscall</mim> in assembler, you need to put a label to ensure that the subsequent instructions fall into the new bundle.
+Bits of future predication are cleared.
+</p>
+
+<p>The first <reg>frame</reg> registers are rotated, and return address is stored in zero register in the new frame.
+Subsequent local registers contain syscall arguments.
+</p>
+
+<p>The <mim>sysret</mim> (<miname>system return</miname>) instruction returns from the system request handler, which was called using <mim>syscall</mim>.
+The instruction use the return address and frame state from zero register.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>syscall</mim>, <mim>sysret</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <noargs>opx</noargs>
+</slot>
+</slot_table>
+
+<p>The instruction <mim>int</mim> (<miname>interrupt</miname>) is provided for sending interrupts to the current core themselves programmatically.
+The sent interrupt doesn't happen synchronously to the instruction thread, but it can be delayed until the moment when this vector is unmasked.
+For the user-mode program, when all interrupts are unmasked, the sent interrupt is happen synchronously to the instruction thread.
+The interrupt index is calculated as <formula><param>src</param> + simm10</formula>.
+The instruction support both styles of interrupt code passing: hardcoded codes with zero register <reg>gz</reg> or dynamic code pasing.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>int</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <regzero>0</regzero>
+    <gpr>src</gpr>
+    <stride>simm10</stride>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<p>The <mim>rfi</mim> instruction (<miname>return from interruption</miname>) returns from the interrupt handler.
+It returns to the beginning of the bundle containing the interrupted incomplete instruction (in case of an error),
+or to a bundle containing the subsequent instruction (in the case of a trap).
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>rfi</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <noargs>opx</noargs>
+</slot>
+</slot_table>
+
+</section>
+
+<section id = "cipher_hash_instructions">
+<title>Cipher and hash instructions</title>
+
+<table>
+<caption>AES/hash instructions</caption>
+<thead>
+<tr>
+<th>Name</th>
+<th>Operation</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><pre><mim>aes_dec</mim>           ra, rb, rc</pre></td><td>aes decrypt round</td></tr>
+<tr><td><pre><mim>aes_dec_last</mim>      ra, rb, rc</pre></td><td>aes decrypt last round</td></tr>
+<tr><td><pre><mim>aes_enc</mim>           ra, rb, rc</pre></td><td>aes encrypt round</td></tr>
+<tr><td><pre><mim>aes_enc_last</mim>      ra, rb, rc</pre></td><td>aes encrypt last round</td></tr>
+<tr><td><pre><mim>aes_imc</mim>           ra, rb</pre></td><td>aes inverse mix columns</td></tr>
+<tr><td><pre><mim>aes_keygen_assist</mim> ra, rb, uimm8</pre></td><td>aes key generation assist</td></tr>
+<tr><td><pre><mim>clmul_ll</mim>          ra, rb, rc</pre></td><td>carry-less multiply low parts</td></tr>
+<tr><td><pre><mim>clmul_hl</mim>          ra, rb, rc</pre></td><td>carry-less multiply high and low parts</td></tr>
+<tr><td><pre><mim>clmul_hh</mim>          ra, rb, rc</pre></td><td>carry-less multiply high parts</td></tr>
+<tr><td><pre><mim>crc32c</mim>            ra, rb, rc, rd</pre></td><td>crc32c hash</td></tr>
+</tbody>
+</table>
+
+<slot_table>
+<caption>Instruction format <mim>aes_enc</mim>, <mim>aes_enc_last</mim>, <mim>aes_dec</mim>, <mim>aes_dec_last</mim>, <mim>clmul</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src1</gpr>
+    <gpr>src2</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<slot_table>
+<caption>Instruction format <mim>aes_imc</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src</gpr>
+    <regzero>0</regzero>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<slot_table>
+<caption>Instruction format <mim>aes_keygen_assist</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src</gpr>
+    <stride>round constant</stride>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<slot_table>
+<caption>Instruction format <mim>crc32c</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>prev</gpr>
+    <gpr>data</gpr>
+    <gpr>len</gpr>
+    <fused_opx>opx</fused_opx>
+</slot>
+</slot_table>
+
+<p>The <mim>crc32c</mim> instruction computes crc32c hash.
+The new hash value is based on previous hash value <quote>prev</quote>.
+The hashed data is in register <quote>data</quote>.
+The len parameter may be any value. If it is bigger than 16, only 16 bytes of data in register data is used.
+</p>
+
+</section>
+
+<section id = "random_generator">
+<title>Random number generation instruction</title>
+
+<p>The special instructions <mim>random</mim> are designed to generate random variables.
+Reading from it returns the next 64-bit random number.
+The instruction returns random numbers that are compliant to the <quote>U.S. National Institute of Standards and Technology (NIST)</quote> standards on random number generators.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>random</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src</gpr>
+    <regzero>0</regzero>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<p>The src operand specifies the used random generator.</p>
+
+<table>
+<thead>
+<tr><th>Instruction</th><th>Source</th><th>NIST Compliance</th></tr>
+</thead><tbody>
+<tr><td>rdrand(0)</td><td>Cryptographically secure pseudorandom number generator</td><td>SP 800-90A</td></tr>
+<tr><td>rdseed(1)</td><td>Non-deterministic random bit generator</td><td>SP 800-90B &amp; C (drafts)</td></tr>
+</tbody>
+</table>
+
+<p>The numbers returned by <mim>rdseed</mim> are referred to as "seed-grade entropy" and are the output of a true random number generator (TRNG),
+or an enhanced non-deterministic random number generator (ENRNG) in NIST-speak.
+<mim>rdseed</mim> is intended for use by software vendors who have an existing PRNG, but would like to benefit from the harsware entropy source.
+With <mim>rdseed</mim> you can seed a PRNG of any size.
+</p>
+
+<p>The numbers returned by <mim>rdseed</mim> have multiplicative prediction resistance.
+If you use two 64-bit samples with multiplicative prediction resistance to build a 128-bit value,
+you end up with a random number with 128 bits of prediction resistance (<formula>2<sup>128</sup><times/>2<sup>128</sup> = 2<sup>256</sup></formula>).
+Combine two of those 128-bit values together, and you get a 256-bit number with 256 bits of prediction resistance.
+You can continue in this fashion to build a random value of arbitrary width and the prediction resistance will always scale with it.
+Because its values have multiplicative prediction resistance <mim>rdseed</mim> is intended for seeding other PRNGs.
+</p>
+
+<p>In contrast, <mim>rdrand</mim> is the output of a 128-bit PRNG that is compliant to <quote>NIST SP 800-90A</quote>.
+It is intended for applications that simply need high-quality random numbers.
+The numbers returned by <mim>rdrand</mim> have additive prediction resistance because they are the output of a pseudorandom number generator.
+If you put two 64-bit values with additive prediction resistance togehter,
+the prediction resistance of the resulting value is only 65 bits (<formula>2<sup>64</sup>+2<sup>64</sup>=2<sup>65</sup></formula>).
+To ensure that <mim>rdrand</mim> values are fully prediction-resistant when combined together to build larger values
+you can follow the procedures in the <quote>DRNG Software Implementation Guide</quote> on generating seed values from <mim>rdrand</mim>,
+but it's generally best and simplest to just use <mim>rdseed</mim> for PRNG seeding.
+</p>
+
+<p>The decision for which generator to use is based on what the output will be used for.
+Use <mim>rdseed</mim> if you wish to seed another pseudorandom number generator (PRNG), use <mim>rdrand</mim> for all other purposes.
+<mim>rdseed</mim> is intended for seeding a software PRNG of arbitrary width.
+<mim>rdrand</mim> is intended for applications that merely require high-quality random numbers.
+</p>
+
+</section>
+
+<section id = "cpuid">
+<title>CPU identification instructions</title>
+
+<p>The <mim>cpuid</mim> instruction is used to dynamically identify which features of <archname/> are implemented in the running processor.
+The realization of the functional characteristics of these instruction systems is recorded in the series of configuration information words.
+One configuration information word can be read once the <mim>cpuid</mim> instruction is executed.
+The configuration information word number to be accessed is computed as <param>index</param>+sext(imm10).
+The 64-bit configuration information is written into the general register dst.
+</p>
+
+<slot_table>
+<caption><mim>cpuid</mim> instruction format</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>index</gpr>
+    <stride>simm10</stride>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<p>Syntax:</p>
+<code>cpuid ra, rb, simm10</code>
+
+<p>The configuration information accessible by the <mim>cpuid</mim> instruction is listed in the table below.
+<mim>cpuid</mim> access to undefined configuration words causes general protection exception.
+The reserved fields in the defined configuration words read back zero values.
+</p>
+
+<table>
+<thead><tr>
+<th>Word number</th>
+<th>Bit field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>0</td><td>31:0</td>
+<td>number of implemented configuration words</td></tr>
+<tr>
+<td rowspan="3">1</td>
+<td>47:32</td>
+<td>vendor</td>
+</tr>
+<tr>
+<td>31:16</td>
+<td>version</td>
+</tr>
+<tr>
+<td>15:0</td>
+<td>revision</td>
+</tr>
+<tr><td>1</td><td>63:0</td><td>capabilities flags</td></tr>
+<tr><td>2</td><td>63:0</td><td>L1I info</td></tr>
+<tr><td>3</td><td>63:0</td><td>L1D info</td></tr>
+<tr><td>4</td><td>63:0</td><td>L2D info</td></tr>
+<tr><td>5</td><td>63:0</td><td>L3D info</td></tr>
+<tr><td>6</td><td>63:0</td><td>L1 ITLB</td></tr>
+<tr><td>7</td><td>63:0</td><td>L1 DTLB</td></tr>
+<tr><td>8</td><td>63:0</td><td>L2 TLB</td></tr>
+<tr><td>9</td><td>63:0</td><td>PMR info</td></tr>
+</tbody>
+</table>
+
+</section>
+
+<section id = "emulator">
+<title>Instructions for the emulation support</title>
+
+<p>Currently the OS and standard libraries are not implemented for the virtual processor.
+Therefore, a few special instructions have been added to mimic their minimal emulation.
+</p>
+
+<p>The <mim>write</mim> instruction is for outputting a formatted string.
+It uses the forward ip-relative addressing to address the format string.
+An unsigned 28-bit <reg>ip</reg>-relative displacement gives a maximum distance of 256 MiB forward from the current position for a one-slot instruction
+and all available address space for a long instruction.
+The <mim>write</mim> instruction allows the continuation of the immediate value in the instruction code
+to the next bundle slot with the formation of a double-slot instruction.
+It is assumed that the effective address point to a zero-terminated string.
+In assembler, you can use both labels on strings in the rodata section, and directly strings
+(the assembler will place them in the rodata section and insert the displacement into the instruction).
+</p>
+
+<p>ea = <reg>ip</reg> + zext(disp)</p>
+
+<slot_table>
+<caption>Instruction format <mim>write</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <raopx>opx</raopx>
+    <jump>uimm28(64)</jump>
+</slot>
+</slot_table>
+
+<p>The following formatters are used to display the content of the current core registers.
+The common syntax is <quote>%formatter(register)</quote> or <quote>%m(command)</quote>.
+</p>
+
+<table>
+<caption>write formatters</caption>
+<thead>
+<tr>
+<th>formatter</th>
+<th>description</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>%%</td><td>%</td></tr>
+<tr><td>%c</td><td>low part of general register as a 1-byte character</td></tr>
+<tr><td>%i8, %i16, %i32, %i64</td><td>low part of general register as a signed decimal value</td></tr>
+<tr><td>%u8, %u16, %u32, %u64</td><td>low part of general register as a unsigned decimal value</td></tr>
+<tr><td>%x8, %x16, %x32, %x64, %x128</td><td>low part of general register as a unsigned hexadecimal value</td></tr>
+<tr><td>%b8, %b16, %b32, %b64</td><td>low part of general register as a binary value</td></tr>
+<tr><td>%f32, %f64, %f128</td><td>low part of general register as a floating-point value</td></tr>
+<tr><td>%vf32, %vf64</td><td>general register as a vector of floating-point values</td></tr>
+<tr><td>%vi8, %vi16, %vi32, %vi64</td><td>general register as a vector of signed decimal value</td></tr>
+<tr><td>%vu8, %vu16, %vu32, %vu64</td><td>general register as a vector of unsigned decimal value</td></tr>
+<tr><td>%vx8, %vx16, %vx32, %vx64</td><td>general register as a vector of hexadecimal value</td></tr>
+<tr><td>%m(dump)</td><td>full core state dump</td></tr>
+</tbody>
+</table>
+
+<p>The instruction <mim>halt</mim> without parameters is intended to turn off the processor core,
+switching it to the deepest level of sleep, without saving a state, from which core may exit only by the reset signal.
+But in emulator this instruction serves to shut down the emulator.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>halt</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <noargs>opx</noargs>
+</slot>
+</slot_table>
+
+<note>The <mim>halt</mim> instruction is not used in unittests,
+because it is automatically added for each test source by test scripts.
+</note>
+
+</section>
+
+</chapter>
