@@ -1,0 +1,1311 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<chapter xmlns="http://www.example.com/postrisc" id="cpu_basic">
+<title>Basic instruction set</title>
+
+<preface>
+
+<p>This chapter describes the <em>basic</em> virtual processor instruction set.
+It is approximately 300 truly machine instructions and 30 pseudo-instructions
+(assembler instructions that do not have exact machine analogs and are replaced by assembler with other machine instructions, possibly with argument correction).
+It includes instructions for working with general registers, branch instructions, instructions for working with special registers.
+It doesn't include privileged instructions, floating-point instructions,
+multimedia instructions, support instructions for an extended (virtual) memory system.
+</p>
+
+</preface>
+
+<section id="register_register_binary">
+<title>Register-register binary instructions</title>
+
+<p>The <def>register-register</def> binary instructions have 3 arguments.
+The first argument is the result register number, the second and third are the numbers of the operand registers.
+</p>
+
+<slot_table>
+<caption>register-register instruction format</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <gpr>rc</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<p>Syntax:</p>
+<code>INSTRUCTION_NAME ra, rb, rc</code>
+
+<table>
+<thead><tr>
+<th>Instruction</th>
+<th>Operation</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr><th colspan="3">Arithmetic instructions</th></tr>
+<tr><td><mim>add</mim></td><td>Ra = Rb + Rc</td><td>Addition (64 bits)</td></tr>
+<tr><td><mim>addws</mim></td><td>Ra = Rb + Rc</td><td>Addition (word, sign-extend)</td></tr>
+<tr><td><mim>add.wz</mim></td><td>Ra = Rb + Rc</td><td>Addition (word, zero-extend)</td></tr>
+<tr><td><mim>sub</mim></td><td>Ra = Rb <minus/> Rc</td><td>Subtraction (64 bits)</td></tr>
+<tr><td><mim>sub.ws</mim></td><td>Ra = Rb <minus/> Rc</td><td>Subtraction (word, sign-extend)</td></tr>
+<tr><td><mim>sub.wz</mim></td><td>Ra = Rb <minus/> Rc</td><td>Subtraction (word, zero-extend)</td></tr>
+<tr><td><mim>absd</mim></td><td>Ra = abs(Rb <minus/> Rc)</td><td>Absolute difference (64 bits)</td></tr>
+<tr><td><mim>absd.w</mim></td><td>Ra = abs(Rb <minus/> Rc)</td><td>Absolute difference (32 bits)</td></tr>
+<tr><td><mim>mul</mim></td><td>Ra = LOPART(Rb <times/> Rc)</td><td>Multiply (the lower part of 128 bits)</td ></tr>
+<tr><td><mim>mul.ws</mim></td><td>Ra = sext(Rb <times/> Rc)</td><td>Multiply word, sign-extend</td ></tr>
+<tr><td><mim>mul.wz</mim></td><td>Ra = zext(Rb <times/> Rc)</td><td>Multiply word, zero-extend</td ></tr>
+<tr><td><mim>mulhs</mim></td><td>Ra = HIPART (Rb <times/> Rc)</td><td>Signed multiplication (the high part from 128 bits)</td></tr>
+<tr><td><mim>mulhu</mim></td><td>Ra = HIPART (Rb <times/> Rc)</td><td>Unsigned multiplication (the high part of 128 bits)</td></tr>
+<tr><td><mim>div</mim></td><td>Ra = Rb / Rc</td><td>Signed division</td></tr >
+<tr><td><mim>divu</mim></td><td>Ra = Rb / Rc</td><td>Unsigned division</td></tr >
+<tr><td><mim>mod</mim></td><td>Ra = Rb % Rc</td><td>The remainder of the signed division</td></tr>
+<tr><td><mim>modu</mim></td><td>Ra = Rb % Rc</td><td>The remainder of the unsigned division</td></tr>
+<tr><th colspan="3">Bitwise instructions</th></tr>
+<tr><td><mim>and</mim></td><td>Ra = Rb AND Rc</td><td>Bitwise AND</td></tr>
+<tr><td><mim>andn</mim></td><td>Ra = NOT (Rb) AND Rc</td><td>Bitwise AND with inverse of the first operand</td></tr>
+<tr><td><mim>or</mim></td><td>Ra = Rb OR Rc</td><td>Bitwise OR</td></tr>
+<tr><td><mim>orn</mim></td><td>Ra = NOT (Rb) OR Rc</td><td>Bitwise OR with inverse of the first operand</td></tr>
+<tr><td><mim>nand</mim></td><td>Ra = NOT (Rb AND Rc)</td><td>Bitwise AND with the inverse of the result</td></tr>
+<tr><td><mim>nor</mim></td><td>Ra = NOT (Rb OR Rc)</td><td>Bitwise OR with result inversion</td></tr>
+<tr><td><mim>xor</mim></td><td>Ra = Rb XOR Rc</td><td>Bitwise XOR</td></tr>
+<tr><td><mim>xnor</mim></td><td>Ra = NOT (Rb XOR Rc)</td><td>Bitwise XOR with result inversion</td></tr>
+<tr><th colspan="3">compare instructions</th></tr>
+<tr><td><mim>cmp.eq.[w|d|q]</mim></td><td>Ra = Rb == Rc</td><td>Comparison for equality</td></tr>
+<tr><td><mim>cmp.ne.[w|d|q]</mim></td><td>Ra = Rb != Rc</td><td>Comparison of inequality</td></tr>
+<tr><td><mim>cmps.lt.[w|d|q]</mim></td><td>Ra = Rb <lt/> Rc</td><td>Signed comparison less</td></tr>
+<tr><td><mim>cmps.le.[w|d|q]</mim></td><td>Ra = Rb <lt/>= Rc</td><td>Signed less-equal comparison</td></tr>
+<tr><td><mim>cmpu.lt.[w|d|q]</mim></td><td>Ra = Rb <lt/> Rc</td><td>Unsigned comparison less</td></tr>
+<tr><td><mim>cmpu.le.[w|d|q]</mim></td><td>Ra = Rb <lt/>= Rc</td><td>Unsigned less-than comparison</td></tr>
+<tr><td><mim>cmps.gt.[w|d|q]</mim></td><td>pseudo instruction</td><td>permutation of arguments and <mim>cmp[w|d|q]lt</mim></td></tr>
+<tr><td><mim>cmps.ge.[w|d|q]</mim></td><td>pseudo instruction</td><td>permutation of arguments and <mim>cmp[w|d|q]le</mim></td></tr>
+<tr><td><mim>cmpu.gt.[w|d|q]</mim></td><td>pseudo instruction</td><td>permutation of arguments and <mim>cmp[w|d|q]ltu</mim></td></tr>
+<tr><td><mim>cmpu.ge.[w|d|q]</mim></td><td>pseudo instruction</td><td>permutation of arguments and <mim>cmp[w|d|q]leu</mim></td></tr>
+<tr><th colspan="3">Min/Max instructions</th></tr>
+<tr><td><mim>mins</mim></td><td>Ra = MIN (Rb, Rc)</td><td>Minimum (signed)</td></tr>
+<tr><td><mim>minu</mim></td><td>Ra = MIN (Rb, Rc)</td><td>Minimum (unsigned)</td></tr>
+<tr><td><mim>maxs</mim></td><td>Ra = MAX (Rb, Rc)</td><td>Maximum (signed)</td></tr>
+<tr><td><mim>maxu</mim></td><td>Ra = MAX (Rb, Rc)</td><td>Maximum (unsigned)</td></tr>
+<tr><th colspan="3">Shift instructions</th></tr>
+<tr><td><mim>sll</mim></td><td>Ra = Rb <lshift/> Rc</td><td>Left shift and zero expansion</td></tr>
+<tr><td><mim>srl</mim></td><td>Ra = Rb <rshift/> Rc</td><td>Right shift and zero expansion</td></tr>
+<tr><td><mim>sra</mim></td><td>Ra = Rb <rshift/> Rc</td><td>Right shift and sign extension</td></tr>
+<tr><td><mim>srd</mim></td><td>Ra = Rb <rshift/> Rc</td><td>Right shift as a signed division</td></tr>
+</tbody>
+</table>
+
+<p>The architecture doesn't use bit flags to store comparison results and doesn't use them as implicit operands/results,
+as, for example, do the architectures Intel X86, SPARC, IBM POWER.
+The comparison result as a value of 0 or 1 is stored in the general register.
+In this sense, <archname/> is similar to MIPS or Alpha architectures.
+Additionally, to reduce the data path, instructions for determining the minimum/maximum are implemented (comparison and selection in one instruction).
+</p>
+
+<p>These eight bitwise register-register instructions are enough to implement any binary logic function with a single instruction.
+</p>
+
+<p>The shift value for the register-register shift instructions is defined as the lower bits of the third register:
+5 bits (for 32 bit operations) or 6 bits (for 64-bit operations) or 7 bits (for 128 bit operations).
+High bits are ignored.
+</p>
+
+<p>The <def>shift right as division</def> instructions produce a right shift according to the rules for dividing numbers with a sign.
+First, an arithmetic right shift is performed (with the expansion of the sign bit).
+If the obtained value is negative, and when shifting to the right, the non-zero bits were forced out (to the left), then the result is corrected (adding a unit).
+The instruction was introduced to quickly divide signed numbers by 2<sup>shift</sup> according to the language rules like C/C++, for dividing negative numbers.
+With this division, the result is symmetrical with respect to zero, and the remainder can be negative.
+</p>
+
+</section>
+
+<section id="register_immediate">
+<title>Register-immediate instructions</title>
+
+<p>The <def>register-immediate</def> arithmetic instructions.
+The first argument is the number of the register of the result, the second is the number of the register-operand,
+the third is an immediate value of 21 or 63 bit length, sign or zero extended to 64 bits.
+Instructions of this group allow continuation of the immediate to the next bundle slot with the formation of a dual-slot instruction.
+</p>
+
+<slot_table>
+<caption>register-immediate instruction format</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src</gpr>
+    <binimm>imm21(63)</binimm>
+</slot>
+</slot_table>
+
+<p>Syntax:</p>
+<code>INSTRUCTION_NAME ra, rb, simm
+INSTRUCTION NAME ra, rb, imm</code>
+
+<table>
+<thead><tr>
+<th>Instruction</th>
+<th>Operation</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr><th colspan="3">Arithmetic instructions</th></tr>
+<tr><td><mim>addi</mim></td><td>Ra = Rb + imm</td><td>Addition</td></tr>
+<tr><td><mim>subfi</mim></td><td>Ra = imm <minus/> Rb</td><td>Subtraction from the intermediates</td></tr>
+<tr><td><mim>addi.ws</mim></td><td>Ra = Rb + imm</td><td>Addition (32 bit signed)</td></tr>
+<tr><td><mim>addi.wz</mim></td><td>Ra = Rb + imm</td><td>Addition (32 bit unsigned)</td></tr>
+<tr><td><mim>subfi.ws</mim></td><td>Ra = imm <minus/> Rb</td><td>Subtract from immediate (32 bit signed)</td></tr >
+<tr><td><mim>subfi.wz</mim></td><td>Ra = imm <minus/> Rb</td><td>Subtract from immediate (32 bit unsigned)</td></tr >
+<tr><td><mim>muli</mim></td><td>Ra = LOPART (Rb <times/> imm)</td><td>Multiplication (the lower part is 128 bits)</td></tr>
+<tr><td><mim>muli.ws</mim></td><td>Ra = sext(Rb <times/> imm)</td><td>Multiply words, sign extension</td></tr>
+<tr><td><mim>muli.wz</mim></td><td>Ra = zext(Rb <times/> imm)</td><td>Multiply words, sign extension</td></tr>
+<tr><td><mim>divi</mim></td><td>Ra = Rb / imm</td><td>Signed division</td></tr>
+<tr><td><mim>divui</mim></td><td>Ra = Rb / imm</td><td>Unsigned division</td></tr>
+<tr><td><mim>modi</mim></td><td>Ra = Rb % imm</td><td>The remainder of the signed division</td></tr>
+<tr><td><mim>modui</mim></td><td>Ra = Rb % imm</td><td>The remainder of the unsigned division</td></tr>
+<tr><th colspan="3">Bitwise instructions</th></tr>
+<tr><td><mim>andi</mim></td><td>Ra = Rb &amp; imm</td><td>Bitwise AND</td></tr>
+<tr><td><mim>andni</mim></td><td>Ra = not (Rb) &amp; imm</td><td>Bitwise AND with register inversion</td></tr>
+<tr><td><mim>ori</mim></td><td>Ra = Rb | imm</td><td>Bitwise OR</td></tr>
+<tr><td><mim>orni</mim></td><td>Ra = not (Rb) | imm</td><td>Bitwise OR with register inversion</td></tr>
+<tr><td><mim>xori</mim></td><td>Ra = Rb xor imm</td><td>Bitwise XOR</td></tr>
+<tr><th colspan="3">compare instructions (64 bit)</th></tr>
+<tr><td><mim>cmpi.eq.d</mim></td><td>Ra = Rb == imm</td><td>Comparison for equality</td></tr>
+<tr><td><mim>cmpi.ne.d</mim></td><td>Ra = Rb != imm</td><td>Comparison of inequality</td></tr>
+<tr><td><mim>cmpsi.lt.d</mim></td><td>Ra = Rb <lt/> imm</td><td>Signed comparison less</td></tr>
+<tr><td><mim>cmpui.lt.d</mim></td><td>Ra = Rb <lt/> imm</td><td>Unsigned comparison less</td></tr>
+<tr><td><mim>cmpsi.gti.d</mim></td><td>Ra = Rb <gt/> imm</td><td>Signed comparison more</td></tr>
+<tr><td><mim>cmpui.gt.d</mim></td><td>Ra = Rb <gt/> imm</td><td>Unsigned comparison more</td></tr>
+<tr><td><mim>cmpsi.le.d</mim></td><td>Ra = Rb <lt/>= imm</td><td>Signed comparison less or equal (pseudo)</td></tr>
+<tr><td><mim>cmpui.le.d</mim></td><td>Ra = Rb <lt/>= imm</td><td>Unsigned comparison less or equal (pseudo)</td></tr>
+<tr><td><mim>cmpsi.ge.d</mim></td><td>Ra = Rb <gt/>= imm</td><td>Signed comparison more or equal (pseudo)</td></tr>
+<tr><td><mim>cmpui.ge.d</mim></td><td>Ra = Rb <gt/>= imm</td><td>Unsigned comparison more or equal (pseudo)</td></tr>
+<tr><th colspan="3">compare instructions (32 bit)</th></tr>
+<tr><td><mim>cmpi.eq.w</mim></td><td>Ra = Rb == imm</td><td>Comparison for equality</td></tr>
+<tr><td><mim>cmpi.ne.w</mim></td><td>Ra = Rb != imm</td><td>Comparison of inequality</td></tr>
+<tr><td><mim>cmpsi.lt.w</mim></td><td>Ra = Rb <lt/> imm</td><td>Signed comparison less</td></tr>
+<tr><td><mim>cmpui.lt.w</mim></td><td>Ra = Rb <lt/> imm</td><td>Unsigned comparison less</td></tr>
+<tr><td><mim>cmpsi.gt.w</mim></td><td>Ra = Rb <gt/> imm</td><td>Signed comparison more</td></tr>
+<tr><td><mim>cmpui.gt.w</mim></td><td>Ra = Rb <gt/> imm</td><td>Unsigned comparison more</td></tr>
+<tr><td><mim>cmpsi.le.w</mim></td><td>Ra = Rb <lt/>= imm</td><td>Signed comparison less or equal (pseudo)</td></tr>
+<tr><td><mim>cmpui.le.w</mim></td><td>Ra = Rb <lt/>= imm</td><td>Unsigned comparison less or equal (pseudo)</td></tr>
+<tr><td><mim>cmpsi.ge.w</mim></td><td>Ra = Rb <gt/>= imm</td><td>Signed comparison more or equal (pseudo)</td></tr>
+<tr><td><mim>cmpui.ge.w</mim></td><td>Ra = Rb <gt/>= imm</td><td>Unsigned comparison more or equal (pseudo)</td></tr>
+<tr><th colspan="3">Min/Max instructions</th></tr>
+<tr><td><mim>minsi</mim></td><td>Ra = smin (Rb, imm)</td><td>Minimum (signed)</td></tr>
+<tr><td><mim>minui</mim></td><td>Ra = umin (Rb, imm)</td><td>Minimum (unsigned)</td></tr>
+<tr><td><mim>maxsi</mim></td><td>Ra = smax (Rb, imm)</td><td>Maximum (signed)</td></tr>
+<tr><td><mim>maxui</mim></td><td>Ra = umax (Rb, imm)</td><td>Maximum (unsigned)</td></tr>
+</tbody>
+</table>
+
+<p>For bitwise <def>register-immediate</def> instructions the immediate value is always sign extended.
+Since it is possible to invert the immediate in advance, 5 instructions are enough instead of 8 for two registers.
+</p>
+
+</section>
+
+<section id="cpu_immediate_shift">
+<title>Immediate shift/bitcount instructions</title>
+
+<p>Binary instructions <def>register and immediate shift</def>.
+Shift or rotation instructions shift the value from the <param>src</param> register
+for a fixed number of bits in <param>shift</param>. Syntax:
+</p>
+
+<code>INSTRUCTION_NAME dst, src, shift</code>
+
+<p>Here the first argument is the number of the result register,
+second argument is the register number, third is the shift/rotate immediate value from 0 to 63.
+</p>
+
+<slot_table>
+<caption>Binary instruction format with immediate shift value</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src</gpr>
+    <bitpos>shift</bitpos>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<table>
+<caption>Instructions where the second argument is shift constant</caption>
+<thead><tr>
+<th>Instruction</th>
+<th>Operation</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><mim>slli</mim></td><td><miname>shift left logical immediate</miname></td><td>Left shift and zero expansion</td></tr>
+<tr><td><mim>srli</mim></td><td><miname>shift right logical immediate</miname></td><td>Right shift and zero expansion</td></tr>
+<tr><td><mim>srai</mim></td><td><miname>shift right algebraic immediate</miname></td><td>Right shift and sign extension</td></tr>
+<tr><td><mim>srdi</mim></td><td><miname>shift right dividing immediate</miname></td><td>Right shift as a signed division</td></tr>
+<tr><td><mim>cnt.pop</mim></td><td><miname>count population</miname></td><td>Bit population</td></tr>
+<tr><td><mim>cnt.lz</mim></td><td><miname>count leading zeros</miname></td><td>Number of consecutive zeros in the most significant bits</td></tr>
+<tr><td><mim>cnt.tz</mim></td><td><miname>count trailing zeros</miname></td><td>Number of consecutive zeros in the least significant bits</td></tr>
+<tr><td><mim>permb</mim></td><td><miname>permute bits</miname></td><td>The bits permutation according to mask</td></tr>
+</tbody>
+</table>
+
+<p>The instructions <mim>cnt.pop</mim>, <mim>cnt.lz</mim>, <mim>cnt.tz</mim> count the ones/zeros in the interval of shift bits.
+<mim>cnt.pop</mim> <ndash/> the total number of ones.
+<mim>cnt.lz</mim> <ndash/> the length of a continuous sequence of zeros from the <strong>beginning</strong> interval (the most significant bits), or shift + 1 if there are all zeroes.
+<mim>cnt.tz</mim> <ndash/> The length of a continuous sequence of zeros from the <strong>end</strong> span (least significant bits), or shift + 1 if there are all zeroes.
+</p>
+
+<p id = "permb">The instruction <mim>permb</mim> (<miname>permute bits</miname>) reverses the order of bits/bytes in the register
+according to the immediate mask <param>shift</param>.
+The mask determines the sequential involvement in the rearrangement of neighbors:
+bits, pairs of bits, nibbles (four bits), bytes, byte pairs, and four bytes of the original 64-bit value.
+For example, a maximum mask of 63 (all units) means a permutation of all pairs (a complete inversion of the order of the bits to the reverse as for FFT),
+mask 1 is only permutation of adjacent bits, mask 32 is permutation of four bytes,
+mask 32 + 16 + 8 is reverse order of bytes (endianness) in the register,
+mask 16 + 8 is reverse the byte order in each four bytes in the register.
+</p>
+
+</section>
+
+<section id="register_register_unary">
+<title>Register-register unary instructions</title>
+
+<slot_table>
+<caption>Instruction format</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src</gpr>
+    <regzero>0</regzero>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<table>
+<caption>Unary instructions</caption>
+<thead><tr>
+<th>Instruction</th>
+<th>Operation</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><mim>mov</mim></td><td><miname>move register</miname></td><td></td></tr>
+</tbody>
+</table>
+
+<p>Instruction <mim>mov</mim> (<miname>move register</miname>) copies data from one register to another.
+</p>
+
+<p>Syntax:</p>
+<code>mov   ra, rb</code>
+
+</section>
+
+<section id="cpu_fused_instructions">
+<title>Fused instructions</title>
+
+<p>Fused instructions have more that two input paarameters and can perform two or more actions in one instruction.
+</p>
+
+<table>
+<caption>Fused instructions</caption>
+<thead><tr>
+<th>Name</th>
+<th>Operation</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><pre><mim>mov2</mim>       ra,rb,rc,rd</pre></td><td><miname>move 2 registers</miname>: gr[ra] = gr[rc], gr[rb] = gr[rd]</td></tr>
+<tr><td><pre><mim>add.add</mim>    ra,rb,rc,rd</pre></td><td><miname>add and add</miname>: gr[ra] = gr[rb] + gr[rc] + gr[rd]</td></tr>
+<tr><td><pre><mim>add.sub</mim>    ra,rb,rc,rd</pre></td><td><miname>add and sub</miname>: gr[ra] = gr[rb] + gr[rc] <minus/> gr[rd]</td></tr>
+<tr><td><pre><mim>sub.sub</mim>    ra,rb,rc,rd</pre></td><td><miname>sub and sub</miname>: gr[ra] = gr[rb] <minus/> gr[rc] <minus/> gr[rd]</td></tr>
+<tr><td><pre><mim>mul.add</mim>    ra,rb,rc,rd</pre></td><td><miname>multiply and add</miname>: gr[ra] = gr[rb] <times/> gr[rc] + gr[rd]</td></tr>
+<tr><td><pre><mim>mul.sub</mim>    ra,rb,rc,rd</pre></td><td><miname>multiply and sub</miname>: gr[ra] = gr[rb] <times/> gr[rc] <minus/> gr[rd]</td></tr>
+<tr><td><pre><mim>mul.subf</mim>   ra,rb,rc,rd</pre></td><td><miname>multiply and sub from</miname>: gr[ra] = gr[rd] <minus/> gr[rb] <times/> gr[rc]</td></tr>
+<tr><td><pre><mim>mbsel</mim>      ra,rb,rc,rd</pre></td><td><miname>masked bit select</miname>: gr[ra] = gr[rb] ? gr[rc]: gr[rd] (bitwise)</td></tr>
+<tr><td><pre><mim>slp</mim>        ra,rb,rc,rd</pre></td><td><miname>shift left pair</miname></td></tr>
+<tr><td><pre><mim>srp</mim>        ra,rb,rc,rd</pre></td><td><miname>shift right pair</miname></td></tr>
+<tr><td><pre><mim>slsrl</mim>      ra,rb,rc,rd</pre></td><td><miname>shift left and shift right logical</miname></td></tr>
+<tr><td><pre><mim>slsra</mim>      ra,rb,rc,rd</pre></td><td><miname>shift left and shift right algebraic</miname></td></tr>
+<tr><td><pre><mim>sl.add</mim>     ra,rb,rc,shift</pre></td><td><miname>shift left and add</miname>: gr[ra] = gr[rb] + (gr[rc] <lshift/> shift)</td></tr>
+<tr><td><pre><mim>sl.add.ws</mim>  ra,rb,rc,shift</pre></td><td><miname>shift left and add</miname>: gr[ra] = gr[rb] + (gr[rc] <lshift/> shift)</td></tr>
+<tr><td><pre><mim>sl.add.wz</mim>  ra,rb,rc,shift</pre></td><td><miname>shift left and add</miname>: gr[ra] = gr[rb] + (gr[rc] <lshift/> shift)</td></tr>
+<tr><td><pre><mim>sl.sub</mim>     ra,rb,rc,shift</pre></td><td><miname>shift left and subtract</miname>: gr[ra] = (gr[rc] <lshift/> shift) <minus/> gr[rb]</td></tr>
+<tr><td><pre><mim>sl.sub.ws</mim>  ra,rb,rc,shift</pre></td><td><miname>shift left and subtract</miname>: gr[ra] = (gr[rc] <lshift/> shift) <minus/> gr[rb]</td></tr>
+<tr><td><pre><mim>sl.sub.wz</mim>  ra,rb,rc,shift</pre></td><td><miname>shift left and subtract</miname>: gr[ra] = (gr[rc] <lshift/> shift) <minus/> gr[rb]</td></tr>
+<tr><td><pre><mim>sl.subf</mim>    ra,rb,rc,shift</pre></td><td><miname>shift left and subtract from</miname>: gr[ra ] = gr[rb] <minus/> (gr[rc] <lshift/> shift)</td></tr>
+<tr><td><pre><mim>sl.subf.ws</mim> ra,rb,rc,shift</pre></td><td><miname>shift left and subtract from</miname>: gr[ra ] = gr[rb] <minus/> (gr[rc] <lshift/> shift)</td></tr>
+<tr><td><pre><mim>sl.subf.wz</mim> ra,rb,rc,shift</pre></td><td><miname>shift left and subtract from</miname>: gr[ra ] = gr[rb] <minus/> (gr[rc] <lshift/> shift)</td></tr>
+<tr><td><pre><mim>sl.or</mim>      ra,rb,rc,shift</pre></td><td><miname>shift left and or</miname>: gr[ra] = gr[rb] | (gr[rc] <lshift/> shift)</td></tr>
+<tr><td><pre><mim>sl.xor</mim>     ra,rb,rc,shift</pre></td><td><miname>shift left and xor</miname>: gr[ra] = gr[rb] ^ (gr[rc] <lshift/> shift)</td></tr>
+<tr><td><pre><mim>srpi</mim>       ra,rb,rc,shift</pre></td><td><miname>shift right pair immediate</miname></td></tr>
+<tr><td><pre><mim>slsrli</mim>     ra,rb,shift,count</pre></td><td><miname>shift left and shift right logical immediate</miname></td></tr>
+<tr><td><pre><mim>slsrai</mim>     ra,rb,shift,count</pre></td><td><miname>shift left and shift right algebraic immediate</miname></td></tr>
+<tr><td><pre><mim>dep.s</mim>      ra,rb,shift,count</pre></td><td><miname>deposit set</miname>: Insert a group of units</td></tr>
+<tr><td><pre><mim>dep.c</mim>      ra,rb,shift,count</pre></td><td><miname>deposit clear</miname>: Insert a group of zeros</td></tr>
+<tr><td><pre><mim>dep.a</mim>      ra,rb,shift,count</pre></td><td><miname>deposit alter</miname>: Change group of bits</td></tr>
+<tr><td><pre><mim>dep</mim>        ra,rb,rc,shift,pos</pre></td><td><miname>deposit</miname>: deposit of parts from two registers</td></tr>
+<tr><td><pre><mim>rlmi</mim>       ra,rb,shift,count,pos</pre></td><td><miname></miname></td></tr>
+</tbody>
+</table>
+
+<slot_table>
+<caption>Fused 4-register instruction format</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <gpr>rc</gpr>
+    <gpr>rd</gpr>
+    <fused_opx>opx</fused_opx>
+</slot>
+</slot_table>
+
+<p>The instruction <mim>mov2</mim> (<miname>move 2 registers</miname>) moves 2 registers.
+It may be used for register values swapping and just code path reduction.
+</p>
+
+<p>Fused instructions of the type <def>shift-addition</def> are intended to reduce the critical data path in address calculations.
+They combine in one machine instruction a left shift (by the number of bits from 0 to 7) with addition (or subtraction).
+The open question remains about handling overflow during shear with addition that may occur.
+with intermediate calculations (shift), but no place for the final result.</p>
+
+<slot_table>
+<caption><mim>srpi</mim> instruction formats</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <gpr>rc</gpr>
+    <bitpos>shift</bitpos>
+    <fused_opx>opx</fused_opx>
+</slot>
+</slot_table>
+
+<p>Pair shift instructions
+<mim>slp</mim> (<miname>shift left pair</miname>),
+<mim>srp</mim> (<miname>shift right pair</miname>) and
+<mim>srpi</mim> (<miname>shift right pair immediate</miname>)
+shift two registers as a whole to the left (right) by <param>count</param> bits,
+and puts the lowest part of the integer in the result register.
+<mim>srp</mim> takes the <param>count</param> low bits from the second, high bits from the first.
+The first argument is the result register number, the second and third are the numbers of the pair of shifted operand registers,
+fourth is register or immediate <param>count</param> from 0 to 63 to indicate the amount of shift.
+The instruction can be used to implement many useful 64-bit operations:
+rotation by a fixed number of bits, left or right shift, extraction of a part of the register:
+</p>
+
+<p>Double shift instructions produce a left and then a right shift (with arithmetic or logical extension).
+They can be used to extract the bit portion from the register and other manipulations.
+</p>
+
+<slot_table>
+<caption><mim>slsrai</mim>, <mim>slsrli</mim>, <mim>dep.s</mim>, <mim>dep.c</mim>, <mim>dep.a</mim> instruction format</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <bitpos>shift</bitpos>
+    <bitpos>count</bitpos>
+    <fused_opx>opx</fused_opx>
+</slot>
+</slot_table>
+
+<p>The <mim>dep</mim> (<miname>deposit</miname>) instruction combines the <param>count</param>
+the least significant bits from the first operand register and the remaining bits from the second operand register.
+<mim>dep</mim> takes high bits from the second, <param>count</param> low bits from the first.
+The first argument is the number of the register of the result, the second and third are the numbers of the combined registers,
+the fourth param <param>count</param> is immediate number from 0 to 63 to indicate the portion size of the first merged register.
+</p>
+
+<slot_table>
+<caption><mim>dep</mim> instruction format</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src</gpr>
+    <gpr>src</gpr>
+    <bitpos>shift</bitpos>
+    <bitpos>pos</bitpos>
+</slot>
+</slot_table>
+
+<p><def>Direct deposit instructions</def> copy from one register to another with a change in part of the register:
+<mim>dep.s</mim> (<miname>deposit set</miname>) <ndash/> insert a unit block,
+<mim>dep.c</mim> (<miname>deposit clear</miname>) <ndash/> insert a block of zeros,
+<mim>dep.a</mim> (<miname>deposit alter</miname>) <ndash/> invert the block of bits.
+The block has a length of <param> count</param> bits and is located after the first <param> shift</param> bits.
+If the value of <formula><param>count</param>+<param>shift</param></formula> is greater than the size of the register (64 bits),
+ones/zeros bit filling or inversion continues from the beginning of the register.
+The first argument is the number of the result register, the second is the number of the source operand register,
+the third and fourth are immediate values <param>shift</param> and <param>count</param> from 0 to 63.
+</p>
+
+<p>The <mim>rlmi</mim> instruction extracts a portion of bits of a given length/position from the register and puts it at the specified position in the result register.
+</p>
+
+<slot_table>
+<caption><mim>rlmi</mim> instruction format</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src</gpr>
+    <bitpos>shift</bitpos>
+    <bitpos>count</bitpos>
+    <bitpos>pos</bitpos>
+</slot>
+</slot_table>
+
+</section>
+
+
+<section id = "conditional_move">
+<title>Conditional move instructions</title>
+
+<p>Conditional move instructions copies data from one of two registers depend on condition.
+</p>
+
+<p>Syntax:</p>
+<code>NAME ra, rb, rc, rd</code>
+
+<p>Description:</p>
+<code>ra =  cond(rb) ? rc : rd</code>
+
+<table>
+<caption>Conditional move instructions</caption>
+<thead><tr>
+<th>Instruction</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><mim>cmov.lsb</mim></td><td>least significand bit is set</td></tr>
+<tr><td><mim>cmov.eq.w</mim></td><td>word equal 0</td></tr>
+<tr><td><mim>cmov.lt.w</mim></td><td>word less than 0</td></tr>
+<tr><td><mim>cmov.le.w</mim></td><td>word less than or equal 0</td></tr>
+<tr><td><mim>cmov.eq.d</mim></td><td>doubleword equal 0</td></tr>
+<tr><td><mim>cmov.lt.d</mim></td><td>doubleword less than 0</td></tr>
+<tr><td><mim>cmov.le.d</mim></td><td>doubleword less than or equal 0</td></tr>
+</tbody>
+</table>
+
+</section>
+
+<section id = "load_store">
+<title>Load/store instructions</title>
+
+<p>The <strong>1st group</strong> of the general-purpose register load/store instructions uses the base plus offset addressing mode.
+The first argument is the number of the loaded (stored) register <param>target</param>,
+second is the <param>base</param> register number, third is an 21 bits length immediate offset <param>disp</param>.
+The instructions in this group allow continuation of the immediate value <param>disp</param>
+in the instruction code for the next slot of the bundle with the formation of a dual-slot instruction (63 bit offset).
+The offset <param>disp</param> after the sign extension is added to the base register to produce a 64-bit effective address.
+</p>
+
+<code>EA = gr[base] + sign_extend(disp)</code>
+
+<slot_table>
+<caption>Format of load/store instructions with basic addressing</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>target</gpr>
+    <gpr>base</gpr>
+    <binimm>disp21</binimm>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <imm size="42">continued disp (63 bits instead of 21)</imm>
+</slot>
+</slot_table>
+
+<p>The <strong>2nd group</strong> of general-purpose load/store instructions uses the ip-relative addressing.
+The first argument is the number of the loaded (or stored) register <param>target</param>,
+second is an unsigned forward offset <param>disp</param> with a length of 28 bits.
+The instructions in this group allow continuation of the immediate value <param>disp</param>
+in the instruction code for the next slot of the bundle with the formation of a dual-slot instruction (64 bit offset).
+</p>
+
+<code>EA = <reg>ip</reg> + zero_extend(disp)</code>
+
+<slot_table>
+<caption>Format of load/store instructions with ip-addressing</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>target</gpr>
+    <call>uimm28</call>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <reserved size="6">0</reserved>
+    <imm size="36">continued disp (64 bits instead of 28)</imm>
+</slot>
+</slot_table>
+
+<p>The <strong>3rd group</strong> of general register load/store instructions uses the basic scaled indexed addressing method.
+The first argument is the number of the loaded or saved register <param>target</param>,
+second is base register number <param>base</param>,
+third is index register <param>index</param>,
+next is shift amount <param>scale</param>,
+last is short offset <param>disp</param> 7 bits long, sign extended to 64 bits.
+The instructions in this group allow continuation of the immediate value <param>disp</param>
+in the instruction code for the next slot of the bundle with the formation of a dual-slot instruction (49 bit offset).
+</p>
+
+<code>EA = gr[base] + (SM(gr[index]) <lshift/> scale) + sign_extend(disp)</code>
+
+<slot_table>
+<caption>Scaled indexed instructions format</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>target</gpr>
+    <gpr>base</gpr>
+    <gpr>index</gpr>
+    <scale>scale</scale>
+    <indexed_opx>opx</indexed_opx>
+    <idisp>disp</idisp>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <imm size="42">continued disp (49 bits instead of 7)</imm>
+</slot>
+</slot_table>
+
+<p>The <strong>4th group</strong> of load/store instructions use base addressing with base updating after usage by the immediate stride.
+Arguments: <param>target</param> register, <param>base</param> register, signed immediate <param>stride</param> (10 bits).
+The instructions in this group allow continuation of the immediate value <param>stride</param>
+in the instruction code for the next slot of the bundle with the formation of a dual-slot instruction (52 bit offset).
+</p>
+
+<p>For load: (ld[s]Nmia):</p>
+
+<code>EA = gr[base]
+tmp = MEM(EA)
+gr[base] = gr[base] + sign_extend(stride)
+gr[target] = tmp</code>
+
+<p>For store: (stNmia):</p>
+
+<code>EA = gr[base]
+MEM(EA) = gr[target]
+gr[base] = gr[base] + sign_extend(stride)</code>
+
+<p>The <strong>5th group</strong> of load/store instructions use
+base addressing with base updating before usage by the immediate stride.
+Arguments are same as for post-update.
+</p>
+
+<p>For load: (ld[s]Nmib):</p>
+
+<code>EA = gr[base] + sign_extend(stride)
+tmp = MEM(EA)
+gr[base] = EA
+gr[target] = tmp</code>
+
+<p>For store: (stNmib):</p>
+
+<code>EA = gr[base] + sign_extend(stride)
+MEM(EA) = gr[target]
+gr[base] = EA</code>
+
+<slot_table>
+<caption>Format of load/store instructions with immediate update</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>target</gpr>
+    <gpr>base</gpr>
+    <stride>stride</stride>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <imm size="42">continued stride (52 bits instead of 10)</imm>
+</slot>
+</slot_table>
+
+<p>The signed immediate <param>disp</param> is added to base to form an effective base.
+The signed immediate <param>stride</param> (non-zero 11-bit) is added to base to form a new base.
+For loads, if target is same as base, base update doesn't occurs or loaded value replaces updated base.
+For stores, if target is same as base, base update occurs after the old value memory storing.
+</p>
+
+<table>
+<caption>Load/store instructions</caption>
+<thead>
+<tr>
+<th colspan="5">Size in bytes</th>
+<th rowspan="2">Operation</th>
+<th rowspan="2" width="35%">Description, parameters</th>
+</tr>
+<tr>
+<th>1</th>
+<th>2</th>
+<th>4</th>
+<th>8</th>
+<th>16</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><mim>ldz.b</mim></td>
+<td><mim>ldz.h</mim></td>
+<td><mim>ldz.w</mim></td>
+<td><mim>ldz.d</mim></td>
+<td><mim>ld.q</mim></td>
+<td>load</td>
+<td rowspan="3">base with offset addressing:
+<pre>INSN target,base,disp21</pre></td>
+</tr>
+<tr>
+<td><mim>lds.b</mim></td>
+<td><mim>lds.h</mim></td>
+<td><mim>lds.w</mim></td>
+<td><mim>lds.d</mim></td>
+<td></td>
+<td>load signed</td>
+</tr>
+<tr>
+<td><mim>st.b</mim></td>
+<td><mim>st.h</mim></td>
+<td><mim>st.w</mim></td>
+<td><mim>st.d</mim></td>
+<td><mim>st.q</mim></td>
+<td>store</td>
+</tr>
+
+<tr>
+<td><mim>ldz.b.r</mim></td>
+<td><mim>ldz.h.r</mim></td>
+<td><mim>ldz.w.r</mim></td>
+<td><mim>ldz.d.r</mim></td>
+<td><mim>ld.q.r</mim></td>
+<td>load</td>
+<td rowspan="3">ip-relative addressing:
+<pre>INSN target,disp28</pre></td>
+</tr>
+<tr>
+<td><mim>lds.b.r</mim></td>
+<td><mim>lds.h.r</mim></td>
+<td><mim>lds.w.r</mim></td>
+<td><mim>lds.d.r</mim></td>
+<td></td>
+<td>load signed</td>
+</tr>
+<tr>
+<td><mim>st.b.r</mim></td>
+<td><mim>st.h.r</mim></td>
+<td><mim>st.w.r</mim></td>
+<td><mim>st.d.r</mim></td>
+<td><mim>st.q.r</mim></td>
+<td>store</td>
+</tr>
+
+<tr>
+<td><mim>ldz.b.xd</mim></td>
+<td><mim>ldz.h.xd</mim></td>
+<td><mim>ldz.w.xd</mim></td>
+<td><mim>ldz.d.xd</mim></td>
+<td><mim>ld.q.xd</mim></td>
+<td>load</td>
+<td rowspan="3">scaled indexed addressing:
+<pre>INSN target,base,index,scale,disp</pre></td>
+</tr>
+<tr>
+<td><mim>lds.b.xd</mim></td>
+<td><mim>lds.h.xd</mim></td>
+<td><mim>lds.w.xd</mim></td>
+<td><mim>lds.d.xd</mim></td>
+<td></td>
+<td>load signed</td>
+</tr>
+<tr>
+<td><mim>st.b.xd</mim></td>
+<td><mim>st.h.xd</mim></td>
+<td><mim>st.w.xd</mim></td>
+<td><mim>st.d.xd</mim></td>
+<td><mim>st.q.xd</mim></td>
+<td>store</td>
+</tr>
+
+<tr>
+<td><mim>ldz.b.xw</mim></td>
+<td><mim>ldz.h.xw</mim></td>
+<td><mim>ldz.w.xw</mim></td>
+<td><mim>ldz.d.xw</mim></td>
+<td><mim>ld.q.xw</mim></td>
+<td>load</td>
+<td rowspan="3">scaled indexed addressing:
+<pre>INSN target,base,index,scale,disp</pre></td>
+</tr>
+<tr>
+<td><mim>lds.b.xw</mim></td>
+<td><mim>lds.h.xw</mim></td>
+<td><mim>lds.w.xw</mim></td>
+<td><mim>lds.d.xw</mim></td>
+<td></td>
+<td>load signed</td>
+</tr>
+<tr>
+<td><mim>st.b.xw</mim></td>
+<td><mim>st.h.xw</mim></td>
+<td><mim>st.w.xw</mim></td>
+<td><mim>st.d.xw</mim></td>
+<td><mim>st.q.xw</mim></td>
+<td>store</td>
+</tr>
+
+<tr>
+<td><mim>ldz.b.xuw</mim></td>
+<td><mim>ldz.h.xuw</mim></td>
+<td><mim>ldz.w.xuw</mim></td>
+<td><mim>ldz.d.xuw</mim></td>
+<td><mim>ld.q.xuw</mim></td>
+<td>load</td>
+<td rowspan="3">scaled indexed addressing:
+<pre>INSN target,base,index,scale,disp</pre></td>
+</tr>
+<tr>
+<td><mim>lds.b.xuw</mim></td>
+<td><mim>lds.h.xuw</mim></td>
+<td><mim>lds.w.xuw</mim></td>
+<td><mim>lds.d.xuw</mim></td>
+<td></td>
+<td>load signed</td>
+</tr>
+<tr>
+<td><mim>st.b.xuw</mim></td>
+<td><mim>st.h.xuw</mim></td>
+<td><mim>st.w.xuw</mim></td>
+<td><mim>st.d.xuw</mim></td>
+<td><mim>st.q.xuw</mim></td>
+<td>store</td>
+</tr>
+
+<tr>
+<td><mim>ldz.b.mia</mim></td>
+<td><mim>ldz.h.mia</mim></td>
+<td><mim>ldz.w.mia</mim></td>
+<td><mim>ldz.d.mia</mim></td>
+<td><mim>ld.q.mia</mim></td>
+<td>load</td>
+<td rowspan="3">base update with immediate stride after memory access:
+<pre>INSN target,base,stride</pre></td>
+</tr>
+<tr>
+<td><mim>lds.b.mia</mim></td>
+<td><mim>lds.h.mia</mim></td>
+<td><mim>lds.w.mia</mim></td>
+<td><mim>lds.d.mia</mim></td>
+<td></td>
+<td>load signed</td>
+</tr>
+<tr>
+<td><mim>st.b.mia</mim></td>
+<td><mim>st.h.mia</mim></td>
+<td><mim>st.w.mia</mim></td>
+<td><mim>st.d.mia</mim></td>
+<td><mim>st.q.mia</mim></td>
+<td>store</td>
+</tr>
+
+<tr>
+<td><mim>ldz.b.mib</mim></td>
+<td><mim>ldz.h.mib</mim></td>
+<td><mim>ldz.w.mib</mim></td>
+<td><mim>ldz.d.mib</mim></td>
+<td><mim>ld.q.mib</mim></td>
+<td>load</td>
+<td rowspan="3">base update with immediate stride before memory access:
+<pre>INSN target,base,stride</pre></td>
+</tr>
+<tr>
+<td><mim>lds.b.mib</mim></td>
+<td><mim>lds.h.mib</mim></td>
+<td><mim>lds.w.mib</mim></td>
+<td><mim>lds.d.mib</mim></td>
+<td></td>
+<td>load signed</td>
+</tr>
+<tr>
+<td><mim>st.b.mib</mim></td>
+<td><mim>st.h.mib</mim></td>
+<td><mim>st.w.mib</mim></td>
+<td><mim>st.d.mib</mim></td>
+<td><mim>st.q.mib</mim></td>
+<td>store</td>
+</tr>
+
+</tbody>
+</table>
+
+</section>
+
+<section id="branches">
+<title>Branch instructions</title>
+
+<p>Instructions of the <def>unconditional</def> branch will jump to the effective address.
+Additionally, the return address can be stored in the general register.
+Using predication can turn an unconditional jump into a conditional jump.
+</p>
+
+<table>
+<thead><tr>
+<th>Instruction</th>
+<th>Operation</th>
+<th>Description</th>
+</tr></thead>
+<tbody>
+<tr><td><pre><mim>jmp</mim>      label</pre></td><td>jump relative</td><td><reg>ip</reg>-relative jump</td></tr>
+<tr><td><pre><mim>jmp.r</mim>    rb,rc</pre></td><td>jump register indirect</td><td>base-relative jump</td></tr>
+<tr><td><pre><mim>jmp.t</mim>    rb,rc</pre></td><td>jump table</td><td>jump to table-relative address</td></tr>
+<tr><td><pre><mim>jmp.t.ws</mim> rb,rc</pre></td><td>jump table word signed index</td><td>jump to table-relative address</td></tr>
+<tr><td><pre><mim>jmp.t.wz</mim> rb,rc</pre></td><td>jump table word unsigned index</td><td>jump to table-relative address</td></tr>
+</tbody>
+</table>
+
+<p>Branch relative forms is an universal instructions
+conditional or unconditional static branch or procedure call to a relative address.
+</p>
+
+<p>Relative branch instructions are generated according to the CA_R rule.
+After the operation code, there is a register for saving a possible return address, and a 28-bit field for encoding the offset (with a sign) relative to <reg>ip</reg>.
+This gives a maximum distance of <plusmn/>2 GiB in both directions from the current position for a one-slot instruction and all available address space for a long instruction.
+The <mim>jmp</mim> instruction allows the continuation of the immediate offset in the instruction code to the next slot of the bundle with the formation of a dual-slot instruction.
+</p>
+
+<p><reg>ip</reg> = <reg>ip</reg> + 16 <times/> simm</p>
+
+<slot_table>
+<caption>Instruction format <mim>jmp</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <raopx>opx</raopx>
+    <jump>simm (28 bits)</jump>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/><slot>
+    <reserved size="10">0</reserved>
+    <imm size="32">extended label (60 bits instead of 28)</imm>
+</slot></slot_table>
+
+<p>The instruction <mim>jmp.r</mim> (<miname>branch register indirect</miname>) is used to branch according to the base addresses in the register.
+The instruction <mim>jmp.r</mim>, when calculating the target address, discards the 4 least significant bits of the result,
+so that the address always aligned with the beginning of the bundle is always obtained.
+</p>
+
+<p><reg>ip</reg> = (gr[base] + gr[index]) &amp; mask{63: 4}</p>
+
+<slot_table>
+<caption>Instruction format <mim>jmp.r</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <regzero>0</regzero>
+    <gpr>base</gpr>
+    <gpr>index</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<p>The <mim>jmp.t</mim> (jump table), <mim>jmp.t.ws</mim>, <mim>jmp.t.wz</mim> (jump table word indexed) instructions are intended for organizing
+table-driven select statements (C language operator <strong>switch</strong> with continuous distribution of variants, preferably starting from zero).
+Traditionally, in most architectures, the table-driven <strong>switch</strong> operator uses
+table of absolute addresses for storing entry points into the code of options.
+This table is private for each process (if the loader base code address is different).
+If the architecture implements the possibility of relative addressing,
+then the table of absolute addresses can be replaced by a table of relative offsets,
+shared by all processes, and put it in the read-only data section.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>jmp.t</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <regzero>0</regzero>
+    <gpr>base</gpr>
+    <gpr>index</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<p>jmp.t:    <reg>ip</reg> = base + mem4[base + 4 <times/> index]</p>
+<p>jmp.t.ws: <reg>ip</reg> = base + mem4[base + 4 <times/> sign_extend(index)]</p>
+<p>jmp.t.wz: <reg>ip</reg> = base + mem4[base + 4 <times/> zero_extend(index)]</p>
+
+<code>.text
+; limit = 7
+ bsi.gt.d selector, limit, default
+ ca.rf   base, table
+ jmp.t   base, selector
+
+label_0:
+...
+label_1:
+...
+...
+label_7:
+...
+default:
+...
+.rodata
+table:
+    dw (label_0 - table)
+    ...
+    dw (label_7 - table)
+</code>
+
+<p>The instructions for the <def>conditional</def> branch calculate the condition and (if the condition is true) jump to the effective address.
+Traditionally (x86, x64, SPARC), conditional branch is implemented using two instructions <ndash/>
+comparison (with the generation of flags of the logical result) and conditional branch (by flags).
+However, conditional branches are very common in programs.
+Therefore, <archname/> uses combined compare and conditional branch instructions to compress code and shorten the critical data path.
+</p>
+
+<table>
+<caption>Conditional branch instructions</caption>
+<thead><tr>
+<th>Instruction</th>
+<th>Operation</th>
+</tr></thead><tbody>
+<tr><td><pre><mim>b.eq.d</mim>     ra, rb, label</pre></td><td>branch if doubleword equal</td></tr>
+<tr><td><pre><mim>b.ne.d</mim>     ra, rb, label</pre></td><td>branch if doubleword not equal</td></tr>
+<tr><td><pre><mim>bs.lt.d</mim>    ra, rb, label</pre></td><td>branch if doubleword less than</td></tr>
+<tr><td><pre><mim>bu.ltu.d</mim>   ra, rb, label</pre></td><td>branch if doubleword less than unsigned</td></tr>
+<tr><td><pre><mim>bs.le.d</mim>    ra, rb, label</pre></td><td>branch if doubleword less than or equal</td></tr>
+<tr><td><pre><mim>bu.leu.d</mim>   ra, rb, label</pre></td><td>branch if doubleword less than or equal unsigned</td></tr>
+<tr><td><pre><mim>bs.gt.d</mim>    ra, rb, label</pre></td><td>branch if doubleword greater than</td></tr>
+<tr><td><pre><mim>bu.gtu.d</mim>   ra, rb, label</pre></td><td>branch if doubleword greater than unsigned</td></tr>
+<tr><td><pre><mim>bs.ge.d</mim>    ra, rb, label</pre></td><td>branch if doubleword greater than or equal</td></tr>
+<tr><td><pre><mim>bu.geu.d</mim>   ra, rb, label</pre></td><td>branch if doubleword greater than or equal unsigned</td></tr>
+
+<tr><td><pre><mim>bi.eq.d</mim>    ra, simm, label</pre></td><td>branch if doubleword equal immediate</td></tr>
+<tr><td><pre><mim>bi.ne.d</mim>    ra, simm, label</pre></td><td>branch if doubleword not equal immediate</td></tr>
+<tr><td><pre><mim>bsi.lt.d</mim>   ra, simm, label</pre></td><td>branch if doubleword less than immediate</td></tr>
+<tr><td><pre><mim>bsi.gt.d</mim>   ra, simm, label</pre></td><td>branch if doubleword greater than immediate</td></tr>
+<tr><td><pre><mim>bui.lt.d</mim>   ra, uimm, label</pre></td><td>branch if doubleword less than unsigned immediate</td></tr>
+<tr><td><pre><mim>bui.gt.d</mim>   ra, uimm, label</pre></td><td>branch if doubleword greater than unsigned immediate</td></tr>
+
+<tr><td><pre><mim>b.eq.w</mim>     ra, rb, label</pre></td><td>branch if word equal</td></tr>
+<tr><td><pre><mim>b.ne.w</mim>     ra, rb, label</pre></td><td>branch if word not equal</td></tr>
+<tr><td><pre><mim>bs.lt.w</mim>    ra, rb, label</pre></td><td>branch if word less than</td></tr>
+<tr><td><pre><mim>bu.lt.w</mim>    ra, rb, label</pre></td><td>branch if word less than unsigned</td></tr>
+<tr><td><pre><mim>bs.le.w</mim>    ra, rb, label</pre></td><td>branch if word less than or equal</td></tr>
+<tr><td><pre><mim>bu.le.w</mim>    ra, rb, label</pre></td><td>branch if word less than or equal unsigned</td></tr>
+<tr><td><pre><mim>bs.gt.w</mim>    ra, rb, label</pre></td><td>branch if word greater than</td></tr>
+<tr><td><pre><mim>bu.gt.w</mim>    ra, rb, label</pre></td><td>branch if word greater than unsigned</td></tr>
+<tr><td><pre><mim>bs.ge.w</mim>    ra, rb, label</pre></td><td>branch if word greater than or equal</td></tr>
+<tr><td><pre><mim>bu.ge.w</mim>    ra, rb, label</pre></td><td>branch if word greater than or equal unsigned</td></tr>
+
+<tr><td><pre><mim>bi.eq.w</mim>    ra, simm, label</pre></td><td>branch if word equal immediate</td></tr>
+<tr><td><pre><mim>bi.ne.w</mim>    ra, simm, label</pre></td><td>branch if word not equal immediate</td></tr>
+<tr><td><pre><mim>bsi.lt.w</mim>   ra, simm, label</pre></td><td>branch if word less than immediate</td></tr>
+<tr><td><pre><mim>bsi.gt.w</mim>   ra, simm, label</pre></td><td>branch if word greater than immediate</td></tr>
+<tr><td><pre><mim>bui.lt.w</mim>   ra, uimm, label</pre></td><td>branch if word less than unsigned immediate</td></tr>
+<tr><td><pre><mim>bui.gt.w</mim>   ra, uimm, label</pre></td><td>branch if word greater than unsigned immediate</td></tr>
+
+<tr><td><pre><mim>b.bs</mim>       ra, rb, label</pre></td><td>branch if bit set</td></tr>
+<tr><td><pre><mim>b.bsi</mim>      ra, shift, label</pre></td><td>branch if bit set immediate</td></tr>
+<tr><td><pre><mim>b.bc</mim>       ra, rb, label</pre></td><td>branch if bit clear</td></tr>
+<tr><td><pre><mim>b.bci</mim>      ra, shift, label</pre></td><td>branch if bit clear immediate</td></tr>
+
+<tr><td><pre><mim>bm.all</mim>     ra, uimm, label</pre></td><td>branch if mask all bits set</td></tr>
+<tr><td><pre><mim>bm.any</mim>     ra, uimm, label</pre></td><td>branch if mask any bit set</td></tr>
+<tr><td><pre><mim>bm.none</mim>    ra, uimm, label</pre></td><td>branch if mask none bit set</td></tr>
+<tr><td><pre><mim>bm.notall</mim>  ra, uimm, label</pre></td><td>branch if mask not all bit set</td></tr>
+
+</tbody>
+</table>
+
+<p>Relative branch instructions are formed according to the rules BRC, BRCI, BRCIU, BBIT.
+After the operation code, the first compared register, the second compared register (or shift immediate),
+and a 16-bit field for encoding the offset (with a sign) relative to <reg>ip</reg>.
+This gives a maximum distance of <formula><plusmn/>1</formula> MiB in both directions from the current position.
+In the case of a long instruction, the maximum distance increases to <formula><plusmn/>8</formula> GiB on both sides of the current position.
+</p>
+
+<slot_table>
+<caption>The format of
+<mim>b.eq.d</mim>, <mim>b.ne.d</mim>, <mim>bs.lt.d</mim>, <mim>bs.le.d</mim>, <mim>bu.lt.d</mim>, <mim>bu.le.d</mim>, <mim>b.bs</mim>, <mim>b.bc</mim>
+</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>srcA</gpr>
+    <gpr>srcB</gpr>
+    <branch_opx>opx</branch_opx>
+    <branch>label17</branch>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <reserved size="29">0</reserved>
+    <imm size="13">label30</imm>
+</slot>
+</slot_table>
+
+<p>Instructions <mim>bs.gt.d</mim> (<mim>bs.lt.d</mim>), <mim>bs.ge.d</mim> (<mim>bs.le.d</mim>), <mim>bu.gt.d</mim> (<mim>bu.lt.d</mim>), <mim>bu.ge.d</mim> (<mim>bu.le.d</mim>) and similar word instructions
+are pseudo-instructions with a replacement of the order of the arguments and are reduced to instructions <quote>less</quote>.
+</p>
+
+<slot_table>
+<caption>Format of instructions <mim>b.bci</mim>, <mim>b.bsi</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>src</gpr>
+    <bitpos>shift</bitpos>
+    <branch_opx>opx</branch_opx>
+    <branch>label17</branch>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <reserved size="29">0</reserved>
+    <imm size="13">label30</imm>
+</slot>
+</slot_table>
+
+<p>Relative branch instructions which use immediate.
+After the operation code, the first compared register, the second compared register (or constant),
+and a 17-bit field for encoding the offset (with a sign) relative to <reg>ip</reg>.
+This gives a maximum distance of <formula><plusmn/>1</formula> MiB in both directions from the current position.
+In the case of a long instruction, the maximum distance increases to <formula><plusmn/>8</formula> GiB on both sides of the current position.
+</p>
+
+<slot_table>
+<caption>The format of the instructions is <mim>bsi.eq.d</mim>, <mim>bi.ne.d</mim>, <mim>bsi.lt.d</mim>, <mim>bsi.gt.d</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>src</gpr>
+    <cbimm>simm11</cbimm>
+    <branch>label17</branch>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <imm size="29">simm40</imm>
+    <imm size="13">label30</imm>
+</slot>
+</slot_table>
+
+<slot_table>
+<caption>Instruction format <mim>bui.lt.d</mim>, <mim>bui.gt.d</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>src</gpr>
+    <cbimm>uimm11</cbimm>
+    <branch>label17</branch>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <imm size="29">uimm40</imm>
+    <imm size="13">label30</imm>
+</slot>
+</slot_table>
+
+<p>The <def>loop control instructions</def> are for optimization (by shortening the critical execution path)
+the most common forms of loops with a constant step.
+Loop control instructions add step (1 or -1) to the loop counter (first argument register) according to loop condition,
+check the loop continuation condition (compare the counter with the second argument register),
+and, if the condition is true, make a relative branch to the effective address (<def>label</def> argument).
+</p>
+
+<slot_table>
+<caption>Format of instructions like <mim>rep*</mim> (register-register comparison)</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst/src</gpr>
+    <gpr>src</gpr>
+    <branch_opx>opx</branch_opx>
+    <branch>label17</branch>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <reserved size="29">0</reserved>
+    <imm size="13">label30</imm>
+</slot>
+</slot_table>
+
+<p>Syntax:</p>
+<code>INSTRUCTION_NAME ra, rb, label</code>
+
+<p>A variant of loop control instructions in which register numbers are the same is a special case.
+The architecture determined that in this case, in comparison (as the boundary of the counter change)
+the old register value will participate.
+This can be used, for example, for branch that occur in the event of an overflow.</p>
+
+<table>
+<caption>Loop control instructions</caption>
+<thead><tr>
+<th>Instruction</th>
+<th>Operation</th>
+</tr></thead><tbody>
+<tr><td><mim>reps.lt.d</mim></td><td>Add 1 and branch if doubleword less (signed)</td></tr>
+<tr><td><mim>repu.lt.d</mim></td><td>Add 1 and branch if doubleword less (unsigned)</td></tr>
+<tr><td><mim>reps.le.d</mim></td><td>Add 1 and branch if doubleword less or equal (signed)</td></tr>
+<tr><td><mim>repu.le.d</mim></td><td>Add 1 and branch if doubleword less or equal (unsigned)</td></tr>
+<tr><td><mim>reps.gt.d</mim></td><td>Add -1 and branch if doubleword greater (signed)</td></tr>
+<tr><td><mim>repu.gt.d</mim></td><td>Add -1 and branch if doubleword greater (unsigned)</td></tr>
+<tr><td><mim>reps.ge.d</mim></td><td>Add -1 and branch if doubleword greater than or equal (signed)</td></tr>
+<tr><td><mim>repu.ge.d</mim></td><td>Add -1 and branch if doubleword greater than or equal (unsigned)</td></tr>
+</tbody></table>
+
+<p>A similar style of loop implementation with minimal software management costs
+found on almost all DSP (digital signal processor) processors.
+The general purpose processors have limited form (with special register <def>iteration counter</def>)
+implemented in the IBM PowerPC and Intel Itanium architectures,
+and universal instructions for general-purpose type add-compare-jump registers are available
+in the HP PA-RISC architecture (instructions <mim>addb</mim>, <mim>addib</mim>),
+in the DEC VAX architecture (<mim>aobleq</mim>, <mim>aoblss</mim>, <mim>sobgeq</mim>, <mim>sobgtr</mim>),
+in the IBM S/390 architecture (<mim>brct</mim>, <mim>bctr</mim>, <mim>bxle</mim>).
+</p>
+
+</section>
+
+<section id = "cpu_misc">
+<title>Miscellaneous instructions</title>
+
+<p>Instruction <mim>ldi</mim> (<miname>load immediate</miname>)
+loads a constant into the register (high 64 bits are reset).
+The first argument of the instruction <mim>ldi</mim> is the register number of the result, the second is the immediate value
+28 bits long (for the short form it sign extended to 64 bits) or full 64 bits (for a dual-slot instruction).
+</p>
+
+<p>Instruction <mim>ldih</mim> (<miname>load immediate into high 64-bit</miname>)
+loads a constant into the upper part of the 128-bit register (the lower 64 bits remain unchanged).
+The first argument of the instruction is the result register number, the second is the immediate value
+28 bits long (for the short form it sign extended to 64 bits) or full 64 bits (for a dual-slot instruction).
+</p>
+
+<code>INSTRUCTION_NAME dst, simm</code>
+
+<slot_table>
+<caption>Instruction format <mim>ldi</mim>, <mim>ldih</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <jump>simm28</jump>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <reserved size="6">0</reserved>
+    <imm size="36">simm (extended to 64 bits)</imm>
+</slot>
+</slot_table>
+
+<p>The instruction <mim>nop</mim> (dummy <miname>none operation</miname> instruction)
+intended for the sole purpose is the code alignment
+to fill in the missing slots in the bundles of instructions, and for the optimal selection of instructions (fetch) from memory.
+</p>
+
+<p>For example, if necessary, insert a label in the code, the compiler should
+add (if necessary) the last (incomplete) bundle with dummy instructions,
+and put the first instruction after the label in a new bundle (since the branch is possible only at the beginning of the bundle).
+Or, for example, various implementations can gain performance gains,
+if the destination address of the frequently performed jump is aligned on the 32/64/128-byte boundary (not just the beginning of the bundle, but the beginning of the cache line).
+</p>
+
+<p>This instruction should not be used for any other purpose.
+The architecture doesn't contain software delays when loading data (load delays), conditional branch (branch delays), pipeline delays (pipeline hazards).
+</p>
+
+<p>The <mim>nop</mim> instruction is processed at the sampling stage,
+but may not be fed to the next stages of the pipeline (issue),
+retire and never cause an interrupt (detect stage) itself.
+This instruction has no dependencies on either reading or writing.
+</p>
+
+<p>The <mim>nop</mim> instruction is automatically added by the assembler to populate incomplete instruction bundle, if necessary,
+place the next instruction in a new bundle (in the case of a tag or a long instruction). The instruction has one immediate argument (unused).
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>nop</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <raopx>opx</raopx>
+    <jump>simm28</jump>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/><slot>
+    <reserved size = "6">0</reserved>
+    <imm size = "36">extended simm (64 bits instead of 28)</imm>
+</slot></slot_table>
+
+<p>Undefined instruction codes are reserved, and can be used for future extensions (new instructions).
+But one instruction <mim>undef</mim> is specially defined forever as reserved.
+It can automatically be added by assembler to fill in an incomplete bundle of instructions.
+after instructions to unconditionally jump, call a function, or return from a function.
+It is also used to fill the tail of code segments.
+The instruction has one immediate argument (unused).
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>undef</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <noargs>opx</noargs>
+</slot>
+</slot_table>
+
+</section>
+
+</chapter>
