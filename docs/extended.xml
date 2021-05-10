@@ -1,0 +1,856 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet type="text/xsl" href="xhtml.xsl"?>
+
+<chapter id="cpu_extended">
+<title>Extended instruction set</title>
+
+<preface>
+<p>This chapter describes the <em>extended</em> virtual processor instruction set which was not included in the basic set.
+</p>
+</preface>
+
+<section id = "conditional_traps">
+<title>Conditional trap instructions</title>
+
+<p>Conditional trap instructions check condition and if true trap execution to exception vector <quote>program_trap</quote>.
+Hardware instructions exist for EQ, NE, LT-signed, LT-unsigned conditions.
+Other conditions may be implemented via arguments swapping, changing the immediate sign, adjusting immediate by 1.
+</p>
+
+<p>Syntax:</p>
+<code>INSTRUCTION_NAME    rb, rc, simm</code>
+
+<table>
+<thead><tr>
+<th>Instruction</th>
+<th>Operation</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr><td><mim>teq</mim></td><td>trap if Rb == Rc + simm</td><td>64bit</td></tr>
+<tr><td><mim>tne</mim></td><td>trap if Rb != Rc + simm</td><td>64bit</td></tr>
+<tr><td><mim>tlt</mim></td><td>trap if Rb &lt; Rc + simm</td><td>64bit, signed</td></tr>
+<tr><td><mim>tltu</mim></td><td>trap if Rb &lt; Rc + simm</td><td>64bit, unsigned</td></tr>
+</tbody>
+</table>
+
+<slot_table>
+<caption>Instruction format for conditional traps</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>src1</gpr>
+    <gpr>src2</gpr>
+    <binimm>simm21 (63)</binimm>
+</slot>
+</slot_table>
+
+</section>
+
+<section id = "load_address">
+<title>Helper Address Calculation Instructions</title>
+
+<p>To simplify addressing, several instructions have been introduced that calculate addresses without going to memory.
+The <mim>ldax</mim> instruction returns the destination address as in indexed addressing.</p>
+
+<slot_table>
+<caption>Instruction format <mim>ldax</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>base</gpr>
+    <gpr>index</gpr>
+    <scale>scale</scale>
+    <idisp>disp</idisp>
+</slot>
+</slot_table>
+
+<p>Data addressing relative to the instruction counter is missing in the <archname/> architecture.
+Therefore, to use the standard (basic with offset) addressing, you need a way to get the relative address in the base register.
+The instruction <mim>ldar</mim> (<miname>load address relative</miname>) is used to calculate the base address relative to the current instruction counter <reg>ip</reg>.
+The first argument is the number of the result register, the second is the distance in the instruction bundles from the current position
+(in assembler, this is a label in the code section, or a label in the immutable data section, aligned on a 16-byte boundary).
+It is used to get the base address of immutable data from a code section, function address or label.
+The instruction doesn't generate interrupts.
+</p>
+
+<code>ldar dst, label</code>
+
+<p>This instruction is necessary for position-independent code to get the absolute address of objects,
+stored at a fixed distance from the current position, for example, intra-module procedures or unchanged local module data.
+On systems like MAS (<em>Multiple Address Spaces</em>) with multiple address spaces,
+where the module's private data is stored at a fixed distance from the code section,
+it can also be used to obtain the base absolute address of the module's private data.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>ldar</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <jump>label (28 bits)</jump>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <reserved size = "10">0</reserved>
+    <imm size = "32">label (expanding to 60 bits instead of 28)</imm>
+</slot>
+</slot_table>
+
+<p>The instruction is formed according to the ldar rule. The result register is followed by a 28-bit field for encoding the offset relative to the instruction counter.
+The data block must be aligned with at least a 16-byte boundary, since the offset expresses the distance in instruction bundles, not bytes.
+The general formula for obtaining the address:</p>
+
+<p>gr [dst] = <reg>ip</reg> + 16 <times/> sign_extend(label)</p>
+
+<p>Offset field 28 bits long (64 bits for double instruction) after sign extension
+and left shift by 4 positions is added to the contents of the instruction counter <reg>ip</reg>,
+to produce a 64-bit effective address.
+The <mim>ldar</mim> instruction allows the continuation of the immediate value in the instruction code
+to the next slot of the bundle with the formation of a dual-slot instruction.</p>
+
+<p>The maximum distance for a short instruction is 2 GiB on either side of the instruction counter.
+It is more convenient to store constant data not after each procedure, but to collect in larger blocks
+in order to reduce the overhead of aligning cache lines and for optimal
+use separate TLB (translate lookaside buffer) for code and data.
+</p>
+
+<p>The <mim>ldar</mim> instruction might be also used to organize access to static data of the module.
+But special for this the instruction <mim>ldr</mim> is intended, which allow to address any byte address.
+To use <mim>ldr</mim>, the distance from the point of contact to the data should not exceed 256 MiB.
+The linker can increase the size of the code section by moving procedures,
+accessing static data (usually a minority) closer to the data section.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>ldr</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <jump>label (28 bits)</jump>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <reserved size = "6">0</reserved>
+    <imm size = "36">label (expanding to 64 bits instead of 28)</imm>
+</slot>
+</slot_table>
+
+<p>gr [dst] = <reg>ip</reg> + zero_extend(label)</p>
+
+
+<p>If a constant with a sign is fits in 28 bits, then it's more efficient to use the <mim>ldi</mim> instruction,
+and if fits in 56 bits then <mim>ldi</mim> along with <mim>ldan</mim>.
+However, when loading constants in bulk, a single <mim>ldar</mim> instruction falls on several loading instructions,
+and then a pair of <mim>ldi</mim> and <mim>ldan</mim> <ndash/> instructions is less compact than a single <mim>ldw</mim> instruction.
+As for loading 8-byte integer constants, real constants, vector constants, then
+using <mim>ldar</mim> along with <mim>ld8</mim>, <mim>ld4</mim> and other download instructions,
+is the recommended, and often the only possible way to load such constants.
+</p>
+
+<p>Base with offset addressing allows 1 MiB addressing to both sides of the base address when using one-slot instructions (21-bit offset).
+If the object is beyond 1 MiB, you will have to use dual-slot instructions.
+But usually, by virtue of the principle of <strong>locality of calls</strong>,
+with a high probability the program will next turn to objects located near the first.
+This fact can be used, and once calculate the base address, from which several necessary objects
+are located no further than 1 MiB, and then use one-slot instructions to address them.
+</p>
+
+<p>Nearest Base Address Calculation Instructions <mim>ldan</mim> (<miname>load address near</miname>).
+It is used to optimize local (by place and time) memory access without using dual-slot instructions and long offsets.
+</p>
+
+<code>ldan dst, base, simm</code>
+
+<p>First argument is the result register number,
+second is base address register number,
+the third is an immediate value is 21 bits long (or 63 bits for a long instruction), extended to 64 bits.
+The instruction allows the continuation of the immediate value in the instruction code up to 63 bits to the next slot of the bundle with the formation of a dual-slot instruction.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>ldan</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>base</gpr>
+    <binimm>simm (21 bits)</binimm>
+</slot>
+</slot_table>
+
+<slot_table>
+<extslotbits/>
+<slot>
+    <ignored size="18">0</ignored>
+    <imm size="24">(63 bits instead of 21)</imm>
+</slot>
+</slot_table>
+
+<p>The target 64-bit address is calculated (for ldan) as:</p>
+<p>gr [dst] = gr [base] + (simm <lshift/> 20)</p>
+
+<p>The following example shows how to use the <mim>ldan</mim> instruction
+to access a group of closely spaced (no more than 1 MiB from each other),
+but far-away data (the distance to the <param>sym</param> object is more than 1 MiB from the base address).
+</p>
+
+<p>Without using <mim>ldan</mim> (4 double instructions, 8 slots)
+</p>
+
+<code>ldsw.l	g11, base, sym + 4
+ldw.l	g12, base, sym + 8
+std.l	g12, base, sym + 16
+ldd.l	g13, base, sym + 32</code>
+
+<p>Using <mim>ldan</mim> (5 single instructions, 5 slots)
+</p>
+
+<code>ldan	tmp, base, data_hi (sym); put the nearest address in tmp
+ldsw	g11, tmp, data_lo (sym) +4; tmp addressing
+ldw	g12, tmp, data_lo (sym) +8
+std	g12, tmp, data_lo (sym) +16
+ldd	g13, tmp, data_lo (sym) +32</code>
+
+</section>
+
+<section id="multprecision">
+<title>Multiprecision arithmetic</title>
+
+<p>For hardware support for long arithmetic, it is advisable to add special instructions.
+In the general case, for intermediate addition/subtraction of parts of high precision numbers
+it is required to specify the incoming carry (borrow), two operands, the result and the outgoing carry (borrow).
+</p>
+
+<p>When explicitly coding all dependencies and not using global flags (which is good for parallel/pipeline execution of instructions)
+it requires 5 parameters: the result, two operands, input and output carry/borrow.
+There is not enough space in the instructions for all five parameters.
+Therefore, the high part of 128-bit registers is used to return the carry/borrow.
+</p>
+
+<p>A special instruction <mim>mulh</mim> (<miname>multiply high</miname>) was introduced for hardware support for multiplying long numbers
+calculating the upper half of a 128-bit product of two 64-bit numbers.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>addc</mim>, <mim>subb</mim>, <mim>mulh</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <gpr>rc</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<slot_table>
+<caption>Instruction format <mim>addaddc</mim>, <mim>subsubb</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>ra</gpr>
+    <gpr>rb</gpr>
+    <gpr>rc</gpr>
+    <gpr>rd</gpr>
+    <fused_opx>opx</fused_opx>
+</slot>
+</slot_table>
+
+<p>Syntax:</p>
+<code>addc      ra, rb, rc
+addaddc   ra, rb, rc, rd
+subb      ra, rb, rc
+subsubb   ra, rb, rc, rd
+mulh      ra, rb, rc
+</code>
+
+<table>
+<caption>Fused instructions</caption>
+<thead><tr>
+<th>Name</th>
+<th>Operation</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr><td><mim>addc</mim></td><td><miname>add with carry</miname></td><td>ra = carry (rb + rc), sum (rb + rc)</td></tr>
+<tr><td><mim>subb</mim></td><td><miname>subtract with borrow</miname></td><td>ra = borrow (rb <minus/> rc), rb-rc</td></tr>
+<tr><td><mim>addaddc</mim></td><td><miname>add and add with carry</miname></td><td>ra = carry (rb + rc + rd. high), rb + rc + rd.high</td></tr>
+<tr><td><mim>subsubb</mim></td><td><miname>subtract and subtract with borrow</miname></td><td>ra = borrow (rb <minus/> rc <minus/>rd.high),rb<minus/>rc<minus/>rd.high</td></tr>
+</tbody></table>
+
+<p>
+It is assumed that numbers of arbitrary length are already loaded into the registers.
+For example, the addition of 256-bit numbers will occur as follows:
+</p>
+<code>addc      a1, b1, c1      ; sum of lower parts, first carry-out
+addaddc   a2, b2, c2, a1  ; sum of middles and carry-in, next carry-out
+addaddc   a3, b3, c3, a2  ; sum of middles and carry-in, next carry-out
+addaddc   a4, b4, c4, a3  ; sum of higher and carry-in, last carry-out
+</code>
+
+</section>
+
+<section id="syscall">
+<title>Software interrupts, system calls</title>
+
+<p>The instruction <mim>syscall</mim> (<miname>system call</miname>) does the call to the kernel of the system to process the system request.
+The system call code computed as gr[base] + offset.
+</p>
+
+<p>Unlike interrupts, a system call is an analogue of a function call, and has similarly implemented return from it to the next bundle.
+Therefore, after the instruction <mim>syscall</mim> in assembler, you need to put a label to ensure that the subsequent instructions fall into the new bundle.
+Bits of future predication are cleared.
+</p>
+
+<p>The first <reg>frame</reg> registers are rotated, and return address is stored in zero register in the new frame.
+Subsequent local registers contain syscall arguments.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>syscall</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>frame</gpr>
+    <gpr>base</gpr>
+    <stride>offset</stride>
+    <fused_opx>opx</fused_opx>
+</slot>
+</slot_table>
+
+<p>The <mim>sysret</mim> (<miname>system return</miname>) instruction returns from the system request handler, which was called using <mim>syscall</mim>.
+The instruction use the return address and frame state from zero register.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>sysret</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <noargs>opx</noargs>
+</slot>
+</slot_table>
+
+<p>The instruction <mim>int</mim> (<miname>interrupt</miname>) is provided for sending interrupts to the current core themselves programmatically.
+The sent interrupt doesn't happen synchronously to the instruction thread, but it can be delayed until the moment when this vector is unmasked.
+For the user-mode program, when all interrupts are unmasked, the sent interrupt is happen synchronously to the instruction thread.
+The interrupt index is calculated as gr[src] + simm21.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>int</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <regzero>src</regzero>
+    <gpr>src</gpr>
+    <stride>offset</stride>
+    <fused_opx>opx</fused_opx>
+</slot>
+</slot_table>
+
+<p>The <mim>rfi</mim> instruction (<miname>return from interruption</miname>) returns from the interrupt handler.
+It returns to the beginning of the bundle containing the interrupted incomplete instruction (in case of an error),
+or to a bundle containing the subsequent instruction (in the case of a trap).
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>rfi</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <noargs>opx</noargs>
+</slot>
+</slot_table>
+
+</section>
+
+<section id = "cpu_atomic">
+<title>Atomic instructions</title>
+
+<p>The processor implementation must follow the programmatic order of executing the instructions of a single-threaded program.
+But the effects of the actions of one thread on the memory can be observed by other threads not in the programmatic order of this thread 
+Depending on the guarantees that the architecture explicitly gives and the permissions that the implementation is explicitly allowed,
+talk about a stricter or weaker ordering of memory.
+<archname/> is an architecture with weak memory ordering.
+There are no obvious restrictions on the visibility of third-party processors or other devices
+(for example, input-output) actions on the memory of the current thread.
+Similarly, the current thread has no explicit guarantees on the order of visibility of the actions of other agents.
+</p>
+
+<p>Special instructions <quote>load-atomic</quote> and <quote>store-atomic</quote>
+used to push the visibility of changes from one thread to another.
+relaxed - normal operation, acquire - acquire changes, release - submit changes, acquire-release - sequential-consistent.
+Before changing the general data, the thread performs acquire by load-acquire from the watchdog variable.
+Similarly, after a change is made to the general data, the stream pushes the changes, executing release by store-release to the watchdog variable.
+</p>
+
+<code>ld1a   dst, base, mo
+ld2a   dst, base, mo
+ld4a   dst, base, mo
+ld8a   dst, base, mo
+ld16a  dst, base, mo
+st1a   src, base, mo
+st2a   src, base, mo
+st4a   src, base, mo
+st8a   src, base, mo
+st16a  src, base, mo
+</code>
+
+<p>These instructions are one-way barriers.
+They do not allow speculative and out-of-order execution of operations with memory through themselves.
+Acquire doesn't allow the subsequent instructions to move forward, and release doesn't let the instructions before it lag behind.
+With the correct (pairwise) use of acquire-release, a closed section of code is obtained, locked at the top (acquire) and at the bottom (release).
+</p>
+
+<slot_table>
+<caption>Instruction format for atomic load/store</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst/src</gpr>
+    <gpr>base</gpr>
+    <regzero>0</regzero>
+    <memorder>mo</memorder>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<p>All subsequent atomic instructions are categorized as RMW (read-modify-write) and contain as an option the memory order for the read and write stages (field <strong>mo</strong>).
+Accordingly, the order is possible: acquire, release, acquire-release (acqrel), and simply relaxed without a barrier.
+</p>
+
+<p>The atomic instruction group atomic modification (fetch-op) copies the old value of a variable from memory to register,
+and sets a new value in memory (test-and-set), or obtained from the old (fetch-and-add and analogues).
+</p>
+
+<code>ea = gr [base]
+dst = mem [ea]
+mem [ea] = dst op src
+</code>
+
+<slot_table>
+<caption>Instruction format <mim>fetch-op</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>base</gpr>
+    <gpr>src</gpr>
+    <memorder>mo</memorder>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<code>amoXXX dst, base, src, order</code>
+
+<table width="75%">
+<caption>atomic instructions fetch-op</caption>
+<thead><tr>
+<th>Instruction</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><mim>amoswap4</mim></td><td>test-and-set 4 bytes</td></tr>
+<tr><td><mim>amoswap8</mim></td><td>test-and-set 8 bytes</td></tr>
+<tr><td><mim>amoadd4</mim></td><td>addition, 4 bytes</td></tr>
+<tr><td><mim>amoadd8</mim></td><td>addition, 8 bytes</td></tr>
+<tr><td><mim>amoand4</mim></td><td>bitwise AND, 4 bytes</td></tr>
+<tr><td><mim>amoand8</mim></td><td>bitwise AND, 8 bytes</td></tr>
+<tr><td><mim>amoor4</mim></td><td>bitwise OR, 4 bytes</td></tr>
+<tr><td><mim>amoor8</mim></td><td>bitwise OR, 8 bytes</td></tr>
+<tr><td><mim>amoxor4</mim></td><td>bitwise XOR, 4 bytes</td></tr>
+<tr><td><mim>amoxor8</mim></td><td>bitwise XOR, 8 bytes</td></tr>
+<tr><td><mim>amomin4</mim></td><td>signed minimum, 4 bytes</td></tr>
+<tr><td><mim>amomin8</mim></td><td>signed minimum, 8 bytes</td></tr>
+<tr><td><mim>amomax4</mim></td><td>signed maximum, 4 bytes</td></tr>
+<tr><td><mim>amomax8</mim></td><td>signed maximum, 8 bytes</td></tr>
+<tr><td><mim>amominu4</mim></td><td>unsigned minimum, 4 bytes</td></tr>
+<tr><td><mim>amominu8</mim></td><td>unsigned minimum, 8 bytes</td></tr>
+<tr><td><mim>amomaxu4</mim></td><td>unsigned maximum, 4 bytes</td></tr>
+<tr><td><mim>amomaxu8</mim></td><td>unsigned maximum, 8 bytes</td></tr>
+</tbody>
+</table>
+
+<p>Instructions
+<mim>cas4</mim> (<miname>compare and swap 4-byte</miname>),
+<mim>cas8</mim> (<miname>compare and swap 8-byte</miname>),
+<mim>cas16</mim> (<miname>compare and swap 16-byte</miname>)
+Designed for non-blocking interactions in a multi-threaded multiprocessor environment.
+Both instructions are atomic indivisible memory operations that cannot be partially performed.
+</p>
+
+<p>The <mim>cas</mim> instruction reads an N-byte number from memory at the address from the <param>base</param> register,
+and compares it with the value in the register <param>dst</param>.
+If the values match, the instruction saves the new value from the <param>src</param> register at this address.
+Otherwise, the instruction doesn't save anything at this address.
+The base address must be aligned at the N-byte boundary.
+The read value is stored in the register <param>dst</param>.
+</p>
+
+<code>value = mem [base]
+if (value == gr [dst]) {
+ mem [base] = gr [src]
+}
+gr [dst] = value
+</code>
+
+<slot_table>
+<caption>Format of instructions <mim>casX</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>base</gpr>
+    <gpr>src</gpr>
+    <memorder>mo</memorder>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<p>Using the following procedure, a stream can modify the contents of a memory cell even if there is a possibility that the stream
+can be interrupted and replaced by another thread that will update the cell,
+or that a thread on another processor can simultaneously modify a cell.
+First, an 8-byte number is entirely loaded into the register.
+Then, the updated value is computed and placed in another <param>sval</param> register.
+Then the <mim>cas16</mim> instruction is executed with parameters
+<param>test</param> (register number where the initial value),
+<param>base</param> (base address register number) and
+<param>sval</param> (register number that contains the updated value).
+If the modification was completed successfully, the original value will be returned.
+If the memory cell doesn't contain the original value
+(the current thread was interrupted or the thread of another processor interrupted), the update will not be successful,
+general register with the number <param>dst</param> of the instruction <mim>cas16</mim> contains the new current value of the memory cell.
+If the memory cell doesn't contain an original value, the thread may try to repeat the procedure again using the new current value.
+</p>
+
+<code>
+loop:
+<mim>ldd</mim> test, base, 0
+<mim>mov</mim> save, test
+...
+<mim>addi</mim> sval, dst, 12; some kind of modification
+...
+<mim>cas8</mim> sval, base, test
+<mim>bne</mim> save, test, loop
+</code>
+
+<p>The instruction <mim>cas8</mim> can be used for controlled sharing of a common data area,
+including the ability to send messages (to a linked message list) when a common area is in use.
+To achieve this, an 8-byte number in memory can be used as a control number.
+A value of zero indicates that the common area is not in use, and that no messages exist.
+A negative value indicates that the area is in use by someone, and that no messages exist.
+A positive value indicates that the shared area is in use,
+and that the value is the address of the most recent message added to the list.
+Therefore, any number of threads wishing to capture a common area,
+can use <mim>cas8</mim> to update the check number,
+to indicate that the area is in use or add messages to the list.
+The only thread that has captured the shared area can also safely use <mim>cas16</mim> to remove messages from the list.
+</p>
+
+<p>The instruction <mim>cas16</mim> can be used similarly to <mim>cas8</mim>.
+Additionally, it has other uses.
+Consider a linked data list, with a check number used to address the first message in the list, as described above.
+If multiple threads are allowed to delete messages using <mim>cas8</mim>
+(and not just the only thread that captured the common area), then the list will probably be incorrectly modified.
+This can happen if, for example, after one thread reads the address
+the very last message to move the message, another thread will delete the first two messages,
+and then adds the first message back to the linked list (<quote>ABA</quote> issue in IBM terminology).
+The first thread, continuing the interrupted execution, will not be able to determine that the list has changed.
+By increasing the size of the control word to a pair of 8-byte numbers,
+containing the address of the first message and the modification tag (change number),
+which increases by 1 each time the list is modified, and using <mim>cas16</mim> to update both fields together,
+the possibility of incorrect list updating can be reduced to an insignificant level.
+Namely, incorrect modification can occur only if the first stream
+was interrupted and during this time the number of changes to the list is exactly a multiple of 2<sup>64</sup>,
+and only if the last change to the list uses the original address of the message.
+</p>
+
+</section>
+
+<section id = "cipher_instructions">
+<title>AES cipher instructions</title>
+
+<table width="80%">
+<caption>AES instructions</caption>
+<thead>
+<tr>
+<th>Name</th>
+<th>Operation</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><pre><mim>aesdec</mim>      ra, rb, rc</pre></td><td><miname>aes decrypt round</miname></td></tr>
+<tr><td><pre><mim>aesdeclast</mim>  ra, rb, rc</pre></td><td><miname>aes decrypt last round</miname></td></tr>
+<tr><td><pre><mim>aesenc</mim>      ra, rb, rc</pre></td><td><miname>aes encrypt round</miname></td></tr>
+<tr><td><pre><mim>aesenclast</mim>  ra, rb, rc</pre></td><td><miname>aes encrypt last round</miname></td></tr>
+<tr><td><pre><mim>aesimc</mim>      ra, rb</pre></td><td><miname>aes inverse mix columns</miname></td></tr>
+<tr><td><pre><mim>aeskeygen</mim>   ra, rb, imm14</pre></td><td><miname>aes key generation assist</miname></td></tr>
+</tbody>
+</table>
+
+<slot_table>
+<caption>Instruction format <mim>aesenc</mim>, <mim>aesenclast</mim>, <mim>aesdec</mim>, <mim>aesdeclast</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src1</gpr>
+    <gpr>src2</gpr>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<slot_table>
+<caption>Instruction format <mim>aesimc</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src</gpr>
+    <regzero>0</regzero>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<slot_table>
+<caption>Instruction format <mim>aeskeygen</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>src</gpr>
+    <stride>round constant</stride>
+    <fused_opx>opx</fused_opx>
+</slot>
+</slot_table>
+
+</section>
+
+<section id = "random_generator">
+<title>Random number generation instruction</title>
+
+<p>The special instructions <mim>rdrand</mim> and <mim>rdseed</mim> are designed to generate random variables.
+Reading from it returns the next 64-bit random number.
+Both <mim>rdrand</mim> and <mim>rdseed</mim> return random numbers
+that are compliant to the <quote>U.S. National Institute of Standards and Technology (NIST)</quote> standards on random number generators.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>rdrand</mim>, <mim>rdseed</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <regzero>0</regzero>
+    <regzero>0</regzero>
+    <misc_opx_res>0</misc_opx_res>
+    <misc_opx>opx</misc_opx>
+</slot>
+</slot_table>
+
+<table>
+<thead>
+<tr><th>Instruction</th><th>Source</th><th>NIST Compliance</th></tr>
+</thead><tbody>
+<tr><td>rdrand</td><td>Cryptographically secure pseudorandom number generator</td><td>SP 800-90A</td></tr>
+<tr><td>rdseed</td><td>Non-deterministic random bit generator</td><td>SP 800-90B &amp; C (drafts)</td></tr>
+</tbody>
+</table>
+
+<p>The numbers returned by <mim>rdseed</mim> are referred to as "seed-grade entropy" and are the output of a true random number generator (TRNG),
+or an enhanced non-deterministic random number generator (ENRNG) in NIST-speak.
+<mim>rdseed</mim> is intended for use by software vendors who have an existing PRNG, but would like to benefit from the harsware entropy source.
+With <mim>rdseed</mim> you can seed a PRNG of any size.
+</p>
+
+<p>The numbers returned by <mim>rdseed</mim> have multiplicative prediction resistance.
+If you use two 64-bit samples with multiplicative prediction resistance to build a 128-bit value,
+you end up with a random number with 128 bits of prediction resistance (<formula>2<sup>128</sup><times/>2<sup>128</sup> = 2<sup>256</sup></formula>).
+Combine two of those 128-bit values together, and you get a 256-bit number with 256 bits of prediction resistance.
+You can continue in this fashion to build a random value of arbitrary width and the prediction resistance will always scale with it.
+Because its values have multiplicative prediction resistance <mim>rdseed</mim> is intended for seeding other PRNGs.
+</p>
+
+<p>In contrast, <mim>rdrand</mim> is the output of a 128-bit PRNG that is compliant to <quote>NIST SP 800-90A</quote>.
+It is intended for applications that simply need high-quality random numbers.
+The numbers returned by <mim>rdrand</mim> have additive prediction resistance because they are the output of a pseudorandom number generator.
+If you put two 64-bit values with additive prediction resistance togehter,
+the prediction resistance of the resulting value is only 65 bits (<formula>2<sup>64</sup>+2<sup>64</sup>=2<sup>65</sup></formula>).
+To ensure that <mim>rdrand</mim> values are fully prediction-resistant when combined together to build larger values
+you can follow the procedures in the <quote>DRNG Software Implementation Guide</quote> on generating seed values from <mim>rdrand</mim>,
+but it's generally best and simplest to just use <mim>rdseed</mim> for PRNG seeding.
+</p>
+
+<p>The decision for which instruction to use is based on what the output will be used for.
+Use <mim>rdseed</mim> if you wish to seed another pseudorandom number generator (PRNG), use <mim>rdrand</mim> for all other purposes.
+<mim>rdseed</mim> is intended for seeding a software PRNG of arbitrary width.
+<mim>rdrand</mim> is intended for applications that merely require high-quality random numbers.
+</p>
+
+</section>
+
+<section id = "cpuid">
+<title>CPU identification instructions</title>
+
+<p>The <mem>cpuid</mem> instruction is used to dynamically identify which features of <archname/> are implemented in the running processor during the execution of the software.
+The realization of the functional characteristics of these instruction systems is recorded in the series of configuration information words.
+One configuration information word can be read once the <mem>cpuid</mem> instruction is executed.
+</p>
+
+<slot_table>
+<caption><mem>cpuid</mem> instruction format</caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>dst</gpr>
+    <gpr>base</gpr>
+    <stride>offset</stride>
+    <fused_opx>opx</fused_opx>
+</slot>
+</slot_table>
+
+<p>Syntax:</p>
+<code>cpuid ra, rb, imm14</code>
+
+<p>When using the <mem>cpuid</mem> instruction, the number of the configuration information word to be accessed is calculated as gr[base]+offset,
+and the configuration information word information read after the instruction is executed is written into the general register dst.
+Each configuration information word is 64 bits, which is written into the result register after the zero extension.
+</p>
+
+<p>The configuration information word contains series of configuration bits (fields).
+For example, The PALEN field of the number of physical address bits supported by the 11th to 4th digits of the configuration word No.1 is recorded as cpuid.1.PALEN[11:4].
+</p>
+
+<p>The configuration information accessible by the <mem>cpuid</mem> instruction is listed in the table below.
+<mem>cpuid</mem> access to undefined configuration words causes general protection exception.
+The reserved fields in the defined configuration words read back zero values.
+</p>
+
+<table>
+<thead><tr>
+<th>Word number</th>
+<th>Bit field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>0</td><td>31:0</td>
+<td>number of implemented configuration words</td></tr>
+<tr>
+<td rowspan="3">1</td>
+<td>47:32</td>
+<td>vendor</td>
+</tr>
+<tr>
+<td>31:16</td>
+<td>version</td>
+</tr>
+<tr>
+<td>15:0</td>
+<td>revision</td>
+</tr>
+<tr><td>1</td><td>63:0</td><td>capabilities flags</td></tr>
+<tr><td>2</td><td>63:0</td><td>L1I info</td></tr>
+<tr><td>3</td><td>63:0</td><td>L1D info</td></tr>
+<tr><td>4</td><td>63:0</td><td>L2D info</td></tr>
+<tr><td>5</td><td>63:0</td><td>L3D info</td></tr>
+<tr><td>6</td><td>63:0</td><td>L1 ITLB</td></tr>
+<tr><td>7</td><td>63:0</td><td>L1 DTLB</td></tr>
+<tr><td>8</td><td>63:0</td><td>L2 TLB</td></tr>
+<tr><td>9</td><td>63:0</td><td>PMR info</td></tr>
+</tbody>
+</table>
+
+</section>
+
+<section id = "emulator">
+<title>Instructions for the emulation support</title>
+
+<p>Currently the OS and standard libraries are not implemented for the virtual processor,
+therefore, a few special instructions have been added to mimic their minimal emulation.
+</p>
+
+<p>The <mim>ldr</mim> instruction for the forward address loading should not be used for storing result in <reg>r0</reg> register, which contains link info.
+So writing to <reg>r0</reg> is ignored and this <mim>ldr</mim> instruction form is used for formatting output.
+</p>
+
+<p>The <mim>write</mim> pseudo-instruction is for outputting a formatted string.
+An unsigned 28-bit <reg>ip</reg>-relative offset gives a maximum distance of 256 MiB forward from the current position for a one-slot instruction
+and all available address space for a long instruction.
+The <mim>write</mim> instruction allows the continuation of the immediate value in the instruction code to the next bundle slot with the formation of a dual-slot instruction.
+It is assumed that the effective address point to a zero-terminated string.
+In assembler, you can use both labels on strings in the rodata section, and directly strings
+(the assembler will place them in the rodata section and insert the offset into the instruction).
+</p>
+
+<p>ea = <reg>ip</reg> + zext(disp)</p>
+
+<slot_table>
+<caption>Instruction format <mim>write</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <gpr>r0</gpr>
+    <jump>disp (28 bits)</jump>
+</slot>
+</slot_table>
+
+<p>The following formatters are used to display the content of the current core registers.
+The common syntax is <quote>%formatter(register)</quote> or <quote>%m(command)</quote>.
+</p>
+
+<table width="88%">
+<caption>write formatters</caption>
+<thead>
+<tr>
+<th width="40%">formatter</th>
+<th>description</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>%%</td><td>%</td></tr>
+<tr><td>%c</td><td>low part of general register as a 1-byte character</td></tr>
+<tr><td>%i8, %i16, %i32, %i64</td><td>low part of general register as a signed decimal value</td></tr>
+<tr><td>%u8, %u16, %u32, %u64</td><td>low part of general register as a unsigned decimal value</td></tr>
+<tr><td>%x8, %x16, %x32, %x64, %x128</td><td>low part of general register as a unsigned hexadecimal value</td></tr>
+<tr><td>%b8, %b16, %b32, %b64</td><td>low part of general register as a binary value</td></tr>
+<tr><td>%f32, %f64, %f128</td><td>low part of general register as a floating-point value</td></tr>
+<tr><td>%vf32, %vf64</td><td>general register as a vector of floating-point values</td></tr>
+<tr><td>%vi8, %vi16, %vi32, %vi64</td><td>general register as a vector of signed decimal value</td></tr>
+<tr><td>%vu8, %vu16, %vu32, %vu64</td><td>general register as a vector of unsigned decimal value</td></tr>
+<tr><td>%vx8, %vx16, %vx32, %vx64</td><td>general register as a vector of hexadecimal value</td></tr>
+<tr><td>%m(dump)</td><td>full core state dump</td></tr>
+</tbody>
+</table>
+
+<p>An instruction without parameters <mim>halt</mim> is used to shut down the emulator.
+In fact, it is intended to be hardware, and serves to turn off the processor core
+(the deepest level of sleep, without saving a state, from which you can exit only by the reset signal, which is equivalent to disconnecting),
+but implemented as emulator.
+</p>
+
+<slot_table>
+<caption>Instruction format <mim>halt</mim></caption>
+<slotbits/>
+<slot>
+    <opc>opcode</opc>
+    <noargs>opx</noargs>
+</slot>
+</slot_table>
+
+</section>
+
+</chapter>

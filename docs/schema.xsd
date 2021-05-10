@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+
+<xsd:annotation>
+  <xsd:documentation xml:lang="en">
+     documentation for book.
+  </xsd:documentation>
+</xsd:annotation>
+
+<xsd:element name="prebook">
+  <xsd:complexType>
+     <xsd:sequence>
+       <xsd:element name="include" type="xs:string" minOccurs="1" maxOccurs="unbounded"/>
+     </xsd:sequence>
+   </xsd:complexType>
+</xsd:element>
+
+<xsd:element name="include" type="xsd:string"/>
+
+<xsd:complexType name="chapter">
+  <xsd:sequence>
+    <xsd:element name="title" type="xs:string" minOccurs="1" maxOccurs="1"/>
+    <xsd:element ref="preface" minOccurs="1" maxOccurs="1"/>
+    <xsd:element ref="section" minOccurs="1" maxOccurs="unbounded"/>
+  </xsd:sequence>
+</xsd:complexType>
+
+<xsd:complexType name="section">
+  <xsd:sequence>
+    <xsd:element name="title" type="xs:string" minOccurs="1" maxOccurs="1"/>
+    <xsd:element ref="preface" minOccurs="1" maxOccurs="1"/>
+    <xsd:element ref="subsection" minOccurs="1" maxOccurs="unbounded"/>
+  </xsd:sequence>
+</xsd:complexType>
+
+<xsd:complexType name="subsection">
+  <xsd:sequence>
+    <xsd:element name="title" type="xs:string" minOccurs="1" maxOccurs="1"/>
+
+    <xsd:element ref="preface" minOccurs="1" maxOccurs="1"/>
+    <xsd:element ref="subsection" minOccurs="1" maxOccurs="unbounded"/>
+  </xsd:sequence>
+</xsd:complexType>
+
+</xsd:schema>

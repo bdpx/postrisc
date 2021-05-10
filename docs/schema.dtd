@@ -1,0 +1,172 @@
+
+<!ELEMENT book (preface, chapter+)>
+
+<!ENTITY % ent "nbsp|sect|copy|laquo|not|plusmn|raquo|times|ndash|mdash|lsquo|rsquo|sbquo|ldquo|rdquo|bdquo|lsaquo|rsaquo|minus|hellip|larr|uarr|rarr|darr|harr|ne|equiv|le|ge|oplus|lshift|rshift">
+<!ENTITY % arch  "mim|miname|reg|regname|regfield|segment|psection|pregion">
+<!ENTITY % inplace  "hex|binary|formula|error|def|param|type|var|function">
+<!ENTITY % inlines  "(#PCDATA|quote|link|label|sup|sub|em|strong|bold|%inplace;|%arch;|%ent;)*">
+<!ENTITY % blocks  "(label|para|note|pre|table|slot_table|reg_table|ul|ol|code)">
+<!ENTITY % ifields  "(td|opc|qp|prepare|pair|pred|opx|gpr|fpr|spr|rrn|imm|scale|stride|idisp|bitpos|vbitpos|misc_opx|flt_opx|binimm|binimmu|sf|regzero|reserved|ignored|bitfield)">
+
+<!ELEMENT chapter (title, preface?, section+)>
+<!ATTLIST chapter id ID #REQUIRED>
+
+<!ELEMENT section (title, (subsection | %blocks;)+)>
+<!ATTLIST section id ID #REQUIRED>
+
+<!ELEMENT subsection (title, (%blocks;)+)>
+<!ATTLIST subsection id ID #REQUIRED>
+
+<!ELEMENT preface  (%blocks;)+>
+<!ELEMENT title    %inlines;>
+<!ELEMENT para    %inlines;>
+<!ATTLIST para  id  ID #IMPLIED>
+<!ELEMENT note    %inlines;>
+<!ATTLIST note  id  ID #IMPLIED>
+<!ELEMENT em    %inlines;>
+<!ELEMENT def    %inlines;>
+<!ELEMENT quote    %inlines;>
+<!ELEMENT strong  %inlines;>
+<!ELEMENT bold    %inlines;>
+<!ELEMENT var    %inlines;>
+<!ELEMENT sup    %inlines;>
+<!ELEMENT sub    %inlines;>
+<!ELEMENT formula  %inlines;>
+<!ELEMENT li    ANY>
+<!-- ((%blocks;)+ | %inlines;+) -->
+<!ELEMENT link    %inlines;>
+<!ATTLIST link href CDATA #REQUIRED>
+<!ELEMENT label    EMPTY>
+<!ATTLIST label name CDATA #REQUIRED>
+
+<!ELEMENT ul (li+)>
+<!ELEMENT ol (li+)>
+
+<!ELEMENT code    %inlines;>
+<!ELEMENT error    %inlines;>
+<!ELEMENT pre    %inlines;>
+<!ELEMENT segment  (#PCDATA)>
+<!ELEMENT psection  (#PCDATA)>
+<!ELEMENT pregion  (#PCDATA)>
+<!ELEMENT hex    (#PCDATA)>
+<!ELEMENT binary  (#PCDATA)>
+
+<!-- Tables -->
+<!ELEMENT table (caption?, ((thead | tbody | tfoot)+ | (slotbits | slot | tr)+))>
+<!ATTLIST table width CDATA #IMPLIED
+                class CDATA #IMPLIED>
+
+<!ELEMENT caption  %inlines;>
+<!ELEMENT thead    (tr+)>
+<!ELEMENT tbody    (tr+)>
+<!ELEMENT tfoot    (tr+)>
+
+<!ELEMENT tr ((%ifields;)+ | ((td|cellc)+) | (th+))>
+<!ELEMENT td ANY>
+<!ATTLIST td width CDATA #IMPLIED
+             class CDATA #IMPLIED
+             colspan CDATA #IMPLIED
+             rowspan CDATA #IMPLIED>
+<!ELEMENT th ANY>
+<!ATTLIST th width CDATA #IMPLIED
+             class CDATA #IMPLIED
+             colspan CDATA #IMPLIED
+             rowspan CDATA #IMPLIED>
+<!ELEMENT cellc ANY>
+<!ATTLIST cellc width CDATA #IMPLIED
+             colspan CDATA #IMPLIED
+             rowspan CDATA #IMPLIED>
+
+<!ELEMENT reg_table  (caption?, (bits32|bits64|HiBits)?, reg_row+)>
+<!ELEMENT reg_row  (td?, (td|opc|rrn|imm|regzero|bitfield|reserved|ignored)+)>
+
+<!ELEMENT slot_table (caption?, tr?, (slotbits|extslotbits)?, slot+)>
+<!ELEMENT slotbits  EMPTY>
+<!ELEMENT extslotbits  EMPTY>
+<!ELEMENT slot    (td?, (%ifields;)+)>
+
+<!ELEMENT bits32  EMPTY>
+<!ELEMENT HiBits  EMPTY>
+<!ELEMENT bits64  EMPTY>
+
+<!ELEMENT opc    (#PCDATA)>
+<!ELEMENT qp    (#PCDATA)>
+<!ELEMENT opx    (#PCDATA)>
+<!ATTLIST opx size CDATA #IMPLIED>
+<!ELEMENT gpr    (#PCDATA)>
+<!ELEMENT fpr    (#PCDATA)>
+<!ELEMENT spr    (#PCDATA)>
+<!ELEMENT rrn    (#PCDATA)>
+<!ELEMENT prepare  (#PCDATA)>
+<!ELEMENT cmod    (#PCDATA)>
+<!ELEMENT pair    (#PCDATA)>
+<!ELEMENT pred    (#PCDATA)>
+<!ELEMENT sf    (#PCDATA)>
+<!ELEMENT scale    (#PCDATA)>
+<!ELEMENT stride  (#PCDATA)>
+<!ELEMENT idisp    (#PCDATA)>
+<!ELEMENT bitpos  (#PCDATA)>
+<!ELEMENT vbitpos  (#PCDATA)>
+<!ELEMENT misc_opx  (#PCDATA)>
+<!ELEMENT flt_opx  (#PCDATA)>
+
+<!ELEMENT imm ANY>
+<!ATTLIST imm size CDATA #IMPLIED>
+<!ELEMENT bitfield   (#PCDATA)>
+<!ATTLIST bitfield size CDATA #IMPLIED>
+<!ELEMENT ignored  (#PCDATA)>
+<!ATTLIST ignored size CDATA #IMPLIED>
+<!ELEMENT reserved  (#PCDATA)>
+<!ATTLIST reserved size CDATA #IMPLIED>
+
+<!ELEMENT binimm  (#PCDATA)>
+<!ELEMENT binimmu  (#PCDATA)>
+<!ELEMENT regzero  (#PCDATA)>
+
+<!ELEMENT mim    (#PCDATA)>
+<!ELEMENT miname  %inlines;>
+<!ELEMENT reg    (#PCDATA)>
+<!ELEMENT regname  %inlines;>
+<!ELEMENT regfield  %inlines;>
+<!ELEMENT param    (#PCDATA)>
+<!ELEMENT function  (#PCDATA)>
+<!ELEMENT type    (#PCDATA)>
+<!ELEMENT relocation  (#PCDATA)>
+
+<!ELEMENT br    EMPTY>
+
+<!-- HTML spacial characters as XML empty tags -->
+
+<!ELEMENT shy    EMPTY>
+<!ELEMENT nbsp    EMPTY>
+<!ELEMENT sect    EMPTY>
+<!ELEMENT copy    EMPTY>
+<!ELEMENT laquo    EMPTY>
+<!ELEMENT raquo    EMPTY>
+<!ELEMENT not    EMPTY>
+<!ELEMENT plusmn  EMPTY>
+<!ELEMENT times    EMPTY>
+<!ELEMENT ndash    EMPTY>
+<!ELEMENT mdash    EMPTY>
+<!ELEMENT lsquo    EMPTY>
+<!ELEMENT rsquo    EMPTY>
+<!ELEMENT sbquo    EMPTY>
+<!ELEMENT ldquo    EMPTY>
+<!ELEMENT rdquo    EMPTY>
+<!ELEMENT bdquo    EMPTY>
+<!ELEMENT lsaquo  EMPTY>
+<!ELEMENT rsaquo  EMPTY>
+<!ELEMENT minus    EMPTY>
+<!ELEMENT hellip  EMPTY>
+<!ELEMENT larr    EMPTY>
+<!ELEMENT uarr    EMPTY>
+<!ELEMENT rarr    EMPTY>
+<!ELEMENT darr    EMPTY>
+<!ELEMENT harr    EMPTY>
+<!ELEMENT ne    EMPTY>
+<!ELEMENT equiv    EMPTY>
+<!ELEMENT le    EMPTY>
+<!ELEMENT ge    EMPTY>
+<!ELEMENT oplus    EMPTY>
+<!ELEMENT lshift  EMPTY>
+<!ELEMENT rshift  EMPTY>
