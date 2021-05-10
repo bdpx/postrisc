@@ -1,0 +1,123 @@
+name: windows_msys2
+run-name: Windows MSYS2 build, run tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
+    # You can convert this to a matrix build if you need cross-platform coverage.
+    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: msys2/setup-msys2@v2
+      with:
+        msystem: UCRT64
+        update: true
+        path-type: minimal
+        install: >
+          git
+          bash
+          mingw-w64-ucrt-x86_64-gcc
+          mingw-w64-ucrt-x86_64-cmake
+          mingw-w64-ucrt-x86_64-make
+          mingw-w64-ucrt-x86_64-libbacktrace
+          mingw-w64-ucrt-x86_64-boost
+          mingw-w64-ucrt-x86_64-gmp
+          mingw-w64-ucrt-x86_64-mpfr
+          mingw-w64-ucrt-x86_64-qt6-base
+          mingw-w64-ucrt-x86_64-qt6-svg
+          mingw-w64-ucrt-x86_64-openssl
+          mingw-w64-ucrt-x86_64-libxslt
+          mingw-w64-ucrt-x86_64-diffutils
+
+    - name: Install packages
+      run: |
+          echo 'Running in MSYS2!'
+          echo 'workspace: ${{github.workspace}}'
+
+    - name: Report runner info
+      run:  |
+          uname -r
+          gcc --version
+          cmake --version
+
+    - name: Put MSYS2_MinGW64 on PATH
+      # there is not yet an environment variable for this path from msys2/setup-msys2
+      run: |
+          echo "path: $PATH"
+          echo "runner.temp: ${{runner.temp}}"
+          echo "${{runner.temp}}/msys64/ucrt64/bin" >> $GITHUB_PATH
+
+    - name: Configure CMake
+      # Configure CMake in a 'build' subdirectory.
+      # CMAKE_BUILD_TYPE is only required if you are using a single-configuration generator such as make.
+      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      run: |
+          echo "new path: $PATH"
+          cmake --version
+          g++ --version
+          cmake --help
+          cmake -G "MinGW Makefiles" \
+                -B build \
+                -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
+                -DCMAKE_CXX_COMPILER=g++ \
+                -DWORKFLOW_CI_BUILD=0
+
+    - name: Build
+      # Build your program with the given configuration
+      run: |
+          cmake --build build \
+                --config ${{env.BUILD_TYPE}} \
+                -- -j4
+
+    - name: Test
+      working-directory: build
+      # Execute tests defined by the CMake configuration.
+      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
+      run: ctest -C ${{env.BUILD_TYPE}}
+
+    - name: list bin dir
+      working-directory: build/bin
+      run: ls -a
+
+    #####################################################
+    # Generate deploy
+    #####################################################
+
+    # for upload, clean and don't fail
+    - name: Clean public directory
+      run: |
+          rm -rf public
+          mkdir public
+
+    # Build the site:
+    # copy selected files from build/bin
+    - name: Build project deploy
+      run: |
+        cmake -E copy build/bin/postrisc.exe public/postrisc.exe
+        cmake -E copy build/bin/qtpostrisc.exe public/qtpostrisc.exe
+
+    # test output
+    - name: List project deploy files
+      run: ls -a public
+
+    # This will automatically upload an artifact from the '/public' directory
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-artifact
+        path: public
+        retention-days: 30
