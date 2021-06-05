@@ -1,0 +1,600 @@
+#include <boost/test/unit_test.hpp>
+
+#include <unistd.h>   // for isatty
+//#include <mpfr.h>     // for mpfr_fma
+#include <chrono>      // for std::chrono::steady_clock/duration/etc
+
+#include "util/common.hpp"
+#include "float.hpp"
+#include "floatx.hpp"
+#include "controller.hpp"
+#include "hardfloat.hpp"
+#include "functions.hpp"
+
+namespace postrisc {
+namespace fpu {
+
+/****************************************************************************************
+* performance tests templates
+****************************************************************************************/
+enum {
+    NUM_INPUTS      = 32,
+    MIN_ITERATIONS  = 500 * 1000
+};
+
+//std::chrono::steady_clock
+using Time = std::chrono::high_resolution_clock;
+using TimePoint = std::chrono::time_point<Time>;
+
+static double
+duration_in_seconds(const TimePoint& start)
+{
+    const TimePoint end = Time::now();
+
+    const  std::chrono::duration<double> diff = end - start;
+    const double run_time = diff.count();
+    // std::cout << "run_time=" << std::setprecision(6) << run_time << std::endl;
+    return run_time;
+}
+
+static bool
+duration_is_enough(const TimePoint& start)
+{
+    const double duration_threshold = 0.5; // seconds
+    return duration_in_seconds(start) < duration_threshold;
+}
+
+void
+TestController::reportTime(i64 count, double seconds)
+{
+    const double mops = (count / seconds) * 1.0e-6;
+    std::cout << std::fixed << std::setprecision(6) << std::setw(10) << mops << " Mops/s: ";
+    writeFunctionName(std::cout);
+}
+
+template<typename T> class test_data
+{
+public:
+    static const std::array<T, NUM_INPUTS> values;
+};
+
+template<>
+const std::array<i32, NUM_INPUTS> test_data<i32>::values =
+{
+    i32( I32C( 0xFFFFBB79 )), i32( I32C( 0x405CF80F )),
+    i32( I32C( 0x00000000 )), i32( I32C( 0xFFFFFD04 )),
+    i32( I32C( 0xFFF20002 )), i32( I32C( 0x0C8EF795 )),
+    i32( I32C( 0xF00011FF )), i32( I32C( 0x000006CA )),
+    i32( I32C( 0x00009BFE )), i32( I32C( 0xFF4862E3 )),
+    i32( I32C( 0x9FFFEFFE )), i32( I32C( 0xFFFFFFB7 )),
+    i32( I32C( 0x0BFF7FFF )), i32( I32C( 0x0000F37A )),
+    i32( I32C( 0x0011DFFE )), i32( I32C( 0x00000006 )),
+    i32( I32C( 0xFFF02006 )), i32( I32C( 0xFFFFF7D1 )),
+    i32( I32C( 0x10200003 )), i32( I32C( 0xDE8DF765 )),
+    i32( I32C( 0x00003E02 )), i32( I32C( 0x000019E8 )),
+    i32( I32C( 0x0008FFFE )), i32( I32C( 0xFFFFFB5C )),
+    i32( I32C( 0xFFDF7FFE )), i32( I32C( 0x07C42FBF )),
+    i32( I32C( 0x0FFFE3FF )), i32( I32C( 0x040B9F13 )),
+    i32( I32C( 0xBFFFFFF8 )), i32( I32C( 0x0001BF56 )),
+    i32( I32C( 0x000017F6 )), i32( I32C( 0x000A908A ))
+};
+
+template<>
+const std::array<i64, NUM_INPUTS> test_data<i64>::values =
+{
+    i64( I64C( 0xFBFFC3FFFFFFFFFF )),
+    i64( I64C( 0x0000000003C589BC )),
+    i64( I64C( 0x00000000400013FE )),
+    i64( I64C( 0x0000000000186171 )),
+    i64( I64C( 0xFFFFFFFFFFFEFBFA )),
+    i64( I64C( 0xFFFFFD79E6DFFC73 )),
+    i64( I64C( 0x0000000010001DFF )),
+    i64( I64C( 0xDD1A0F0C78513710 )),
+    i64( I64C( 0xFFFF83FFFFFEFFFE )),
+    i64( I64C( 0x00756EBD1AD0C1C7 )),
+    i64( I64C( 0x0003FDFFFFFFFFBE )),
+    i64( I64C( 0x0007D0FB2C2CA951 )),
+    i64( I64C( 0x0007FC0007FFFFFE )),
+    i64( I64C( 0x0000001F942B18BB )),
+    i64( I64C( 0x0000080101FFFFFE )),
+    i64( I64C( 0xFFFFFFFFFFFF0978 )),
+    i64( I64C( 0x000000000008BFFF )),
+    i64( I64C( 0x0000000006F5AF08 )),
+    i64( I64C( 0xFFDEFF7FFFFFFFFE )),
+    i64( I64C( 0x0000000000000003 )),
+    i64( I64C( 0x3FFFFFFFFF80007D )),
+    i64( I64C( 0x0000000000000078 )),
+    i64( I64C( 0xFFF80000007FDFFD )),
+    i64( I64C( 0x1BBC775B78016AB0 )),
+    i64( I64C( 0xFFF9001FFFFFFFFE )),
+    i64( I64C( 0xFFFD4767AB98E43F )),
+    i64( I64C( 0xFFFFFEFFFE00001E )),
+    i64( I64C( 0xFFFFFFFFFFF04EFD )),
+    i64( I64C( 0x07FFFFFFFFFFF7FF )),
+    i64( I64C( 0xFFFC9EAA38F89050 )),
+    i64( I64C( 0x00000020FBFFFFFE )),
+    i64( I64C( 0x0000099AE6455357 ))
+};
+
+template<>
+const std::array<f32, NUM_INPUTS> test_data<f32>::values =
+{
+    F32_C(0x4EFA0000),
+    F32_C(0xC1D0B328),
+    F32_C(0x80000000),
+    F32_C(0x3E69A31E),
+    F32_C(0xAF803EFF),
+    F32_C(0x3F800000),
+    F32_C(0x17BF8000),
+    F32_C(0xE74A301A),
+    F32_C(0x4E010003),
+    F32_C(0x7EE3C75D),
+    F32_C(0xBD803FE0),
+    F32_C(0xBFFEFF00),
+    F32_C(0x7981F800),
+    F32_C(0x431FFFFC),
+    F32_C(0xC100C000),
+    F32_C(0x3D87EFFF),
+    F32_C(0x4103FEFE),
+    F32_C(0xBC000007),
+    F32_C(0xBF01F7FF),
+    F32_C(0x4E6C6B5C),
+    F32_C(0xC187FFFE),
+    F32_C(0xC58B9F13),
+    F32_C(0x4F88007F),
+    F32_C(0xDF004007),
+    F32_C(0xB7FFD7FE),
+    F32_C(0x7E8001FB),
+    F32_C(0x46EFFBFF),
+    F32_C(0x31C10000),
+    F32_C(0xDB428661),
+    F32_C(0x33F89B1F),
+    F32_C(0xA3BFEFFF),
+    F32_C(0x537BFFBE),
+};
+
+template<>
+const std::array<f64, NUM_INPUTS> test_data<f64>::values =
+{
+    F64_C(0x422FFFC008000000),
+    F64_C(0xB7E0000480000000),
+    F64_C(0xF3FD2546120B7935),
+    F64_C(0x3FF0000000000000),
+    F64_C(0xCE07F766F09588D6),
+    F64_C(0x8000000000000000),
+    F64_C(0x3FCE000400000000),
+    F64_C(0x8313B60F0032BED8),
+    F64_C(0xC1EFFFFFC0002000),
+    F64_C(0x3FB3C75D224F2B0F),
+    F64_C(0x7FD00000004000FF),
+    F64_C(0xA12FFF8000001FFF),
+    F64_C(0x3EE0000000FE0000),
+    F64_C(0x0010000080000004),
+    F64_C(0x41CFFFFE00000020),
+    F64_C(0x40303FFFFFFFFFFD),
+    F64_C(0x3FD000003FEFFFFF),
+    F64_C(0xBFD0000010000000),
+    F64_C(0xB7FC6B5C16CA55CF),
+    F64_C(0x413EEB940B9D1301),
+    F64_C(0xC7E00200001FFFFF),
+    F64_C(0x47F00021FFFFFFFE),
+    F64_C(0xBFFFFFFFF80000FF),
+    F64_C(0xC07FFFFFE00FFFFF),
+    F64_C(0x001497A63740C5E8),
+    F64_C(0xC4BFFFE0001FFFFF),
+    F64_C(0x96FFDFFEFFFFFFFF),
+    F64_C(0x403FC000000001FE),
+    F64_C(0xFFD00000000001F6),
+    F64_C(0x0640400002000000),
+    F64_C(0x479CEE1E4F789FE0),
+    F64_C(0xC237FFFFFFFFFDFE),
+};
+
+template<>
+const std::array<f80, NUM_INPUTS> test_data<f80>::values =
+{
+    F80_C(0xC03F, 0xA9BE15A19C1E8B62),
+    F80_C(0x8000, 0x0000000000000000),
+    F80_C(0x75A8, 0xE59591E4788957A5),
+    F80_C(0xBFFF, 0xFFF0000000000040),
+    F80_C(0x0CD8, 0xFC000000000007FE),
+    F80_C(0x43BA, 0x99A4000000000000),
+    F80_C(0x3FFF, 0x8000000000000000),
+    F80_C(0x4081, 0x94FBF1BCEB5545F0),
+    F80_C(0x403E, 0xFFF0000000002000),
+    F80_C(0x3FFE, 0xC860E3C75D224F28),
+    F80_C(0x407E, 0xFC00000FFFFFFFFE),
+    F80_C(0x737A, 0x800000007FFDFFFE),
+    F80_C(0x4044, 0xFFFFFF80000FFFFF),
+    F80_C(0xBBFE, 0x8000040000001FFE),
+    F80_C(0xC002, 0xFF80000000000020),
+    F80_C(0xDE8D, 0xFFFFFFFFFFE00004),
+    F80_C(0xC004, 0x8000000000003FFB),
+    F80_C(0x407F, 0x800000000003FFFE),
+    F80_C(0xC000, 0xA459EE6A5C16CA55),
+    F80_C(0x8003, 0xC42CBF7399AEEB94),
+    F80_C(0xBF7F, 0xF800000000000006),
+    F80_C(0xC07F, 0xBF56BE8871F28FEA),
+    F80_C(0xC07E, 0xFFFF77FFFFFFFFFE),
+    F80_C(0xADC9, 0x8000000FFFFFFFDE),
+    F80_C(0xC001, 0xEFF7FFFFFFFFFFFF),
+    F80_C(0x4001, 0xBE84F30125C497A6),
+    F80_C(0xC06B, 0xEFFFFFFFFFFFFFFF),
+    F80_C(0x4080, 0xFFFFFFFFBFFFFFFF),
+    F80_C(0x87E9, 0x81FFFFFFFFFFFBFF),
+    F80_C(0xA63F, 0x801FFFFFFEFFFFFE),
+    F80_C(0x403C, 0x801FFFFFFFF7FFFF),
+    F80_C(0x4018, 0x8000000000080003),
+};
+
+template<>
+const std::array<f128, NUM_INPUTS> test_data<f128>::values =
+{
+    F128_C(0x3FDA200000100000, 0x0000000000000000),
+    F128_C(0x3FFF000000000000, 0x0000000000000000),
+    F128_C(0x85F14776190C8306, 0xD8715F4E3D54BB92),
+    F128_C(0xF2B00000007FFFFF, 0xFFFFFFFFFFF7FFFF),
+    F128_C(0x8000000000000000, 0x0000000000000000),
+    F128_C(0xBFFFFFFFFFE00000, 0x0000008000000000),
+    F128_C(0x407F1719CE722F3E, 0xDA6B3FE5FF29425B),
+    F128_C(0x43FFFF8000000000, 0x0000000000400000),
+    F128_C(0x401E000000000100, 0x0000000000002000),
+    F128_C(0x3FFED71DACDA8E47, 0x4860E3C75D224F28),
+    F128_C(0xBF7ECFC1E90647D1, 0x7A124FE55623EE44),
+    F128_C(0x0DF7007FFFFFFFFF, 0xFFFFFFFFEFFFFFFF),
+    F128_C(0x3FE5FFEFFFFFFFFF, 0xFFFFFFFFFFFFEFFF),
+    F128_C(0x403FFFFFFFFFFFFF, 0xFFFFFFFFFFFFFBFE),
+    F128_C(0xBFFB2FBF7399AFEB, 0xA459EE6A5C16CA55),
+    F128_C(0xBDB8FFFFFFFFFFFC, 0x0000000000000400),
+    F128_C(0x3FC8FFDFFFFFFFFF, 0xFFFFFFFFF0000000),
+    F128_C(0x3FFBFFFFFFDFFFFF, 0xFFF8000000000000),
+    F128_C(0x407043C11737BE84, 0xDDD58212ADC937F4),
+    F128_C(0x8001000000000000, 0x0000001000000001),
+    F128_C(0xC036FFFFFFFFFFFF, 0xFE40000000000000),
+    F128_C(0x4002FFFFFE000002, 0x0000000000000000),
+    F128_C(0x4000C3FEDE897773, 0x326AC4FD8EFBE6DC),
+    F128_C(0xBFFF0000000FFFFF, 0xFFFFFE0000000000),
+    F128_C(0x62C3E502146E426D, 0x43F3CAA0DC7DF1A0),
+    F128_C(0xB5CBD32E52BB570E, 0xBCC477CB11C6236C),
+    F128_C(0xE228FFFFFFC00000, 0x0000000000000000),
+    F128_C(0x3F80000000000000, 0x0000000080000008),
+    F128_C(0xC1AFFFDFFFFFFFFF, 0xFFFC000000000000),
+    F128_C(0xC96F000000000000, 0x00000001FFFBFFFF),
+    F128_C(0x3DE09BFE7923A338, 0xBCC8FBBD7CEC1F4F),
+    F128_C(0x401CFFFFFFFFFFFF, 0xFFFFFFFEFFFFFF80),
+};
+
+template<>
+const std::array<f256, NUM_INPUTS> test_data<f256>::values =
+{
+    F256_C(0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x3FFF000000000000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x85F14776190C8306, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0xF2B00000007FFFFF, 0xFFFFFFFFFFF7FFFF, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x8000000000000000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0xBFFFFFFFFFE00000, 0x0000008000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x407F1719CE722F3E, 0xDA6B3FE5FF29425B, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x43FFFF8000000000, 0x0000000000400000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x401E000000000100, 0x0000000000002000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x3FFED71DACDA8E47, 0x4860E3C75D224F28, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0xBF7ECFC1E90647D1, 0x7A124FE55623EE44, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x0DF7007FFFFFFFFF, 0xFFFFFFFFEFFFFFFF, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x3FE5FFEFFFFFFFFF, 0xFFFFFFFFFFFFEFFF, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x403FFFFFFFFFFFFF, 0xFFFFFFFFFFFFFBFE, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0xBFFB2FBF7399AFEB, 0xA459EE6A5C16CA55, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0xBDB8FFFFFFFFFFFC, 0x0000000000000400, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x3FC8FFDFFFFFFFFF, 0xFFFFFFFFF0000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x3FFBFFFFFFDFFFFF, 0xFFF8000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x407043C11737BE84, 0xDDD58212ADC937F4, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x8001000000000000, 0x0000001000000001, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0xC036FFFFFFFFFFFF, 0xFE40000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x4002FFFFFE000002, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x4000C3FEDE897773, 0x326AC4FD8EFBE6DC, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0xBFFF0000000FFFFF, 0xFFFFFE0000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x62C3E502146E426D, 0x43F3CAA0DC7DF1A0, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0xB5CBD32E52BB570E, 0xBCC477CB11C6236C, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0xE228FFFFFFC00000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x3F80000000000000, 0x0000000080000008, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0xC1AFFFDFFFFFFFFF, 0xFFFC000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0xC96F000000000000, 0x00000001FFFBFFFF, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x3DE09BFE7923A338, 0xBCC8FBBD7CEC1F4F, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F256_C(0x401CFFFFFFFFFFFF, 0xFFFFFFFEFFFFFF80, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+};
+
+template<>
+const std::array<f512, NUM_INPUTS> test_data<f512>::values =
+{
+    F512_C(0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x3FFF000000000000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x85F14776190C8306, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0xF2B00000007FFFFF, 0xFFFFFFFFFFF7FFFF, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x8000000000000000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0xBFFFFFFFFFE00000, 0x0000008000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x407F1719CE722F3E, 0xDA6B3FE5FF29425B, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x43FFFF8000000000, 0x0000000000400000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x401E000000000100, 0x0000000000002000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x3FFED71DACDA8E47, 0x4860E3C75D224F28, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0xBF7ECFC1E90647D1, 0x7A124FE55623EE44, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x0DF7007FFFFFFFFF, 0xFFFFFFFFEFFFFFFF, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x3FE5FFEFFFFFFFFF, 0xFFFFFFFFFFFFEFFF, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x403FFFFFFFFFFFFF, 0xFFFFFFFFFFFFFBFE, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0xBFFB2FBF7399AFEB, 0xA459EE6A5C16CA55, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0xBDB8FFFFFFFFFFFC, 0x0000000000000400, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x3FC8FFDFFFFFFFFF, 0xFFFFFFFFF0000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x3FFBFFFFFFDFFFFF, 0xFFF8000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x407043C11737BE84, 0xDDD58212ADC937F4, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x8001000000000000, 0x0000001000000001, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0xC036FFFFFFFFFFFF, 0xFE40000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x4002FFFFFE000002, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x4000C3FEDE897773, 0x326AC4FD8EFBE6DC, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0xBFFF0000000FFFFF, 0xFFFFFE0000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x62C3E502146E426D, 0x43F3CAA0DC7DF1A0, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0xB5CBD32E52BB570E, 0xBCC477CB11C6236C, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0xE228FFFFFFC00000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x3F80000000000000, 0x0000000080000008, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0xC1AFFFDFFFFFFFFF, 0xFFFC000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0xC96F000000000000, 0x00000001FFFBFFFF, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x3DE09BFE7923A338, 0xBCC8FBBD7CEC1F4F, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+    F512_C(0x401CFFFFFFFFFFFF, 0xFFFFFFFEFFFFFF80, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92,
+           0x3FDA200000100000, 0x0000000000000000, 0xD8715F4E3D54BB92, 0xD8715F4E3D54BB92),
+};
+
+
+inline u32 next_index(u32 input)
+{
+    return (input + 1) & (NUM_INPUTS - 1);
+}
+
+template<typename T, typename RESULT, typename TEST_FPU>
+void
+TestController::time_f1(
+    RESULT (TEST_FPU::*function)( T ),
+    TEST_FPU & fpu )
+{
+    i64 count = 0;
+    u32 inputNum = 0;
+
+    TimePoint startClock = Time::now();
+
+    do {
+        for (int i = MIN_ITERATIONS; i; --i) {
+            auto result = (fpu.*function)(test_data<T>::values[inputNum]);
+            UNREFERENCED_PARAMETER(result);
+            inputNum = next_index(inputNum);
+        }
+        count += MIN_ITERATIONS;
+    }
+    while (duration_is_enough(startClock));
+
+    inputNum = 0;
+    startClock = Time::now();
+
+    for (i64 i = count; i; --i) {
+        auto result = (fpu.*function)(test_data<T>::values[inputNum]);
+        UNREFERENCED_PARAMETER(result);
+        inputNum = next_index(inputNum);
+    }
+
+    reportTime(count, duration_in_seconds(startClock));
+}
+
+
+template<typename T, typename RESULT, typename TEST_FPU>
+void
+TestController::time_a1(
+    RESULT (TEST_FPU::*function)( T ),
+    TEST_FPU & fpu )
+{
+    i64 count = 0;
+    u32 inputNum = 0;
+
+    TimePoint startClock = Time::now();
+
+    do {
+        for (int i = MIN_ITERATIONS; i; --i) {
+            auto result = (fpu.*function)(test_data<T>::values[inputNum].abs());
+            UNREFERENCED_PARAMETER(result);
+            inputNum = next_index(inputNum);
+        }
+        count += MIN_ITERATIONS;
+    }
+    while (duration_is_enough(startClock));
+
+    inputNum = 0;
+    startClock = Time::now();
+
+    for (i64 i = count; i; --i) {
+        auto result = (fpu.*function)(test_data<T>::values[inputNum].abs());
+        UNREFERENCED_PARAMETER(result);
+        inputNum = next_index(inputNum);
+    }
+
+    reportTime(count, duration_in_seconds(startClock));
+}
+
+
+template<typename T, typename RESULT, typename TEST_FPU>
+void
+TestController::time_f2(
+    RESULT (TEST_FPU::*function)( T, T ),
+    TEST_FPU & fpu )
+{
+    i64 count = 0;
+    u32 inputNumA = 0;
+    u32 inputNumB = 0;
+
+    TimePoint startClock = Time::now();
+
+    do {
+        for (int i = MIN_ITERATIONS; i; --i) {
+            auto result =
+            (fpu.*function)(test_data<T>::values[inputNumA],
+                            test_data<T>::values[inputNumB]);
+
+            UNREFERENCED_PARAMETER(result);
+            inputNumA = next_index(inputNumA);
+            if (inputNumA == 0)
+                inputNumB = next_index(inputNumB);
+        }
+        count += MIN_ITERATIONS;
+    }
+    while (duration_is_enough(startClock));
+
+    inputNumA = 0;
+    inputNumB = 0;
+    startClock = Time::now();
+
+    for (i64 i = count; i; --i) {
+        auto result =
+        (fpu.*function)(test_data<T>::values[inputNumA],
+                        test_data<T>::values[inputNumB]);
+
+        UNREFERENCED_PARAMETER(result);
+        inputNumA = next_index(inputNumA);
+        if (inputNumA == 0)
+            inputNumB = next_index(inputNumB);
+    }
+
+    reportTime(count, duration_in_seconds(startClock));
+}
+
+
+template<typename T, typename RESULT, typename TEST_FPU>
+void
+TestController::time_f3(
+    RESULT (TEST_FPU::*function)( T, T, T, muladd_negate_t ),
+    TEST_FPU & fpu )
+{
+    i64 count = 0;
+    u32 inputNumA = 0;
+    u32 inputNumB = 0;
+    u32 inputNumC = 0;
+
+    TimePoint startClock = Time::now();
+
+    do {
+        for (int i = MIN_ITERATIONS; i; --i) {
+            auto result =
+            (fpu.*function)(test_data<T>::values[inputNumA],
+                            test_data<T>::values[inputNumB],
+                            test_data<T>::values[inputNumC],
+                            FLOAT_MULADD_NEGATE_NONE);
+
+            UNREFERENCED_PARAMETER(result);
+
+            inputNumA = next_index(inputNumA);
+            if (inputNumA == 0) {
+                inputNumB = next_index(inputNumB);
+                if (inputNumB == 0)
+                    inputNumC = next_index(inputNumC);
+            }
+        }
+        count += MIN_ITERATIONS;
+    }
+    while (duration_is_enough(startClock));
+
+    inputNumA = 0;
+    inputNumB = 0;
+    inputNumC = 0;
+    startClock = Time::now();
+
+    for (i64 i = count; i; --i) {
+        auto result =
+        (fpu.*function)(test_data<T>::values[inputNumA],
+                        test_data<T>::values[inputNumB],
+                        test_data<T>::values[inputNumC],
+                        FLOAT_MULADD_NEGATE_NONE);
+
+        UNREFERENCED_PARAMETER(result);
+
+        inputNumA = next_index(inputNumA);
+        if (inputNumA == 0) {
+            inputNumB = next_index(inputNumB);
+            if (inputNumB == 0)
+                inputNumC = next_index(inputNumC);
+        }
+    }
+
+    reportTime(count, duration_in_seconds(startClock));
+}
+
+
+BOOST_AUTO_TEST_SUITE(timing)
+
+#define FPU_TIMING_TEST_CASE(FPU_TYPE, NumInputs, supported, T1, T2, method, hardware)           \
+    BOOST_FIXTURE_TEST_CASE(time_ ## T1 ## _ ## method, FpuTestFixture)                          \
+    {                                                                                            \
+        const int functionCode = T1 ## _ ## method;                                              \
+        const unsigned supportedMask = hardware ? SUPPORTED_HARD : SUPPORTED_SOFT;               \
+        TestFunctionPtr func = [](TestController & ctr, TestContext context)                     \
+        {                                                                                        \
+            FPU_TYPE         fpu;                                                                \
+            ctr.setup_fpu(fpu, context);                                                         \
+            ctr.time_##NumInputs < T1, T2, FPU_TYPE > ( & FPU_TYPE::method, fpu );               \
+        };                                                                                       \
+        if ((SUPPORTED_##supported) & supportedMask)                                             \
+        {                                                                                        \
+            BOOST_CHECK_NO_THROW(ctrl.testingFunction(functionCode, func, hardware));            \
+        }                                                                                        \
+    }
+
+#if 1
+
+BOOST_AUTO_TEST_SUITE(soft)
+#define FPU_SOFT_TIME_FIXTURE(NumInputs, Templt, supported, roundingPrecision, roundingMode, tininessMode, tininessModeAtReducedPrecision, T1, T2, method) \
+    FPU_TIMING_TEST_CASE(SoftFPU, NumInputs, supported, T1, T2, method, false)
+
+DECLARE_FUNCTIONS_TABLE(FPU_SOFT_TIME_FIXTURE)
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(slow)
+#define FPU_TESTSOFT_TIME_FIXTURE(NumInputs, Templt, supported, roundingPrecision, roundingMode, tininessMode, tininessModeAtReducedPrecision, T1, T2, method) \
+    FPU_TIMING_TEST_CASE(TestFPU, NumInputs, supported, T1, T2, method, false)
+
+DECLARE_FUNCTIONS_TABLE(FPU_TESTSOFT_TIME_FIXTURE)
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(hard)
+#define FPU_HARD_TIME_FIXTURE(NumInputs, Templt, supported, roundingPrecision, roundingMode, tininessMode, tininessModeAtReducedPrecision, T1, T2, method) \
+    FPU_TIMING_TEST_CASE(HardFPU, NumInputs, supported, T1, T2, method, true)
+
+DECLARE_HARDWARE_FUNCTIONS_TABLE(FPU_HARD_TIME_FIXTURE)
+BOOST_AUTO_TEST_SUITE_END()
+
+#endif
+
+BOOST_AUTO_TEST_SUITE_END() // timing
+
+} // namespace fpu
+} // namespace postrisc
