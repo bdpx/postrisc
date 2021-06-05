@@ -1,0 +1,65 @@
+#pragma once
+
+namespace postrisc {
+
+class CBundle;
+
+/****************************************************************************
+* segment types - powers of 2 for masking
+***************************************************************************/
+enum class ESectionKind { // flags/mask
+    text       = 1,
+    rodata     = 2,
+    data       = 4
+};
+
+enum ESectionId : u32 { // numbers
+    ESectionId_code   = 0,
+    ESectionId_rodata = 1,
+    ESectionId_data   = 2,
+};
+
+inline ESectionKind operator | (ESectionKind a, ESectionKind b) { return ESectionKind(int(a) | int(b)); }
+inline bool operator & (ESectionKind a, ESectionKind b) { return (int(a) & int(b)) != 0; }
+
+class CProgramSection {
+public:
+    CProgramSection(u32 id, ESectionKind type);
+    ~CProgramSection(void);
+    size_t size(void) const;
+    void clear(void);
+    void reserve(size_t size);
+    char back(void) const;
+    void write(char val);
+    void write(u8 val);
+    void write(u16 val);
+    void write(u32 val);
+    void write(u64 val);
+    void write(u128 val);
+    void write(const CBundle & bundle);
+    void write(float x);
+    void write(double x);
+    void write(quadruple x);
+    void align(size_t alignment);
+    u64 ComputeIpRelative(i64 ip, u64 offset) const;
+    u64 ComputeGlobalOffset(u64 offset) const;
+    u64 ComputeNextIp(void) const;
+    void write(std::ostream& out) const;
+    void print(const char name[], std::ostream& out) const;
+    const char * GetString(size_t offset) const;
+    size_t GetNextGlobalOffset(void) const;
+    u32 GetId(void) const { return m_Id; }
+    ESectionKind GetSectionType(void) const { return m_Kind; }
+
+public:
+    size_t              global_offset;  // offset in image
+    size_t              global_size;    // aligned final size
+
+private:
+    u32                 m_Id;           // section uniq id
+    ESectionKind        m_Kind;         // section type
+
+    std::vector<char>   image;
+};
+
+} // namespace postrisc
