@@ -1,0 +1,389 @@
+#pragma once
+
+#include <unordered_map>
+#include <exception>
+
+#include "program_section.hpp"
+#include "util/mpreal.hpp"
+
+namespace postrisc {
+
+/***********************************************************************
+    tokenized program (lexical analyzer)
+
+    token is part of (token_type, terminal_data)
+
+        (identifier,   identifier_num)
+        (keyword,      keyword_type)
+        (operator,     EOperatorKind)
+        (decimal,      string_pool_position)
+        (hexadecimal,  string_pool_position)
+        (binary,       string_pool_position)
+        (octal,        string_pool_position)
+        (string,       string_pool_position)
+        (character,    string_pool_position)
+        (eol,          line_start)
+        (eof,          0)
+
+***********************************************************************/
+
+#define DECLARE_TOKEN_TABLE(X) \
+    X (undefined,   "und") \
+    X (identifier,  "idn") \
+    X (decimal,     "dec") \
+    X (hexadecimal, "hex") \
+    X (octal,       "oct") \
+    X (binary,      "bin") \
+    X (real,        "flt") \
+    X (string,      "str") \
+    X (character,   "chr") \
+    X (keyword,     "key") \
+    X (const,       "con") \
+    X (define,      "def") \
+    X (register,    "reg") \
+    X (operator,    "opr") \
+    X (unary,       "una") \
+    X (include,     "inc") \
+    X (eol,         "eol") \
+    X (eof,         "eof") \
+
+
+enum ETokenKind {
+#define TOKEN_ENUM_X(enumeration, text) token_##enumeration,
+    DECLARE_TOKEN_TABLE(TOKEN_ENUM_X)
+    token_last
+};
+
+
+/*************************************************************************
+* operators parsed by lexer
+*************************************************************************/
+#define DECLARE_OPERATOR_TABLE(X) \
+    X (plus,          30,    "+") \
+    X (minus,         30,    "-") \
+    X (product,       32,    "*") \
+    X (slash,         32,    "/") \
+    X (dbl_slash,     32,    "//") \
+    X (percent,       32,    "%") \
+    X (dbl_percent,   32,    "%%") \
+    X (shl,           28,    "<<") \
+    X (shr,           28,    ">>") \
+    X (sar,           28,    ">>>") \
+    X (bitand,        26,    "&") \
+    X (bitxor,        24,    "^") \
+    X (bitor,         22,    "|") \
+    X (dbl_and,       18,    "&&") \
+    X (dbl_or,        14,    "||") \
+    X (dbl_xor,       16,    "^^") \
+    X (equal,          0,    "=") \
+    X (dbl_equal,     20,    "==") \
+    X (less_greater,  20,    "<>") \
+    X (not_equal,     20,    "!=") \
+    X (less,          20,    "<") \
+    X (less_equal,    20,    "<=") \
+    X (greater,       20,    ">") \
+    X (greater_equal, 20,    ">=") \
+    X (increment,      0,    "++") \
+    X (decrement,      0,    "--") \
+    X (here,           0,    "$") \
+    X (base,           0,    "$$") \
+    X (diez,           0,    "#") \
+    X (point,          0,    ".") \
+    X (dbl_point,      0,    "..") \
+    X (ellipsis,       0,    "...") \
+    X (semicolon,      0,    ";") \
+    X (colon,          0,    ":") \
+    X (dbl_colon,      0,    "::") \
+    X (invert,         0,    "~") \
+    X (not,            0,    "!") \
+    X (question,       0,    "?") \
+    X (dbl_diez,       0,    "##") \
+    X (plus_equal,     0,    "+=") \
+    X (minus_equal,    0,    "-=") \
+    X (xor_equal,      0,    "^=") \
+    X (or_equal,       0,    "|=") \
+    X (dbl_and_equal,  0,    "&&=") \
+    X (dbl_or_equal,   0,    "||=") \
+    X (product_equal,  0,    "*=") \
+    X (slash_equal,    0,    "/=") \
+    X (percent_equal,  0,    "%=") \
+    X (shl_equal,      0,    "<<=") \
+    X (shr_equal,      0,    ">>=") \
+    X (and_equal,      0,    "&=") \
+    X (assign,         0,    ":=") \
+    X (l_bracket,      0,    "[") \
+    X (r_bracket,      0,    "]") \
+    X (l_compound,     0,    "{") \
+    X (r_compound,     0,    "}") \
+    X (l_parenthese,   0,    "(") \
+    X (r_parenthese,   0,    ")") \
+    X (arrow,          0,    "->") \
+    X (arrow_mul,      0,    "->*") \
+    X (point_mul,      0,    ".*") \
+    X (backslash,      0,    "\\") \
+    X (comma,          0,    ",")
+
+
+enum EOperatorKind {
+#define OPERATOR_ENUM_X(name, priority, text) operator_##name,
+    DECLARE_OPERATOR_TABLE(OPERATOR_ENUM_X)
+    operator_last
+};
+
+class CompilationError : public std::exception {
+public:
+    CompilationError(int _lineNum, const std::string msg) : lineNum(_lineNum), message(msg) {}
+    const char * what(void) const noexcept override { return message.c_str(); }
+    const std::string & GetMessage() const { return message; }
+    int GetLineNum(void) const { return lineNum; }
+
+private:
+    int lineNum;
+    std::string message;
+};
+
+/*************************************************************************
+* tokenized terminal element
+*************************************************************************/
+class CParserToken {
+public:
+    constexpr CParserToken(void) : value(0) {}
+    constexpr CParserToken(ETokenKind type, size_t data) : value(static_cast<uint32_t>(data) | (static_cast<uint32_t>(type) << data_bits)) {}
+    constexpr CParserToken(EOperatorKind op) : value(op | (static_cast<uint32_t>(token_operator) << data_bits)) {}
+
+    ETokenKind GetType(void) const { return static_cast<ETokenKind>(value >> data_bits); }
+    uint32_t GetData(void) const { return value & data_mask; }
+
+    friend bool operator == (CParserToken a, CParserToken b) { return a.value == b.value; }
+    friend bool operator != (CParserToken a, CParserToken b) { return a.value != b.value; }
+
+    friend std::ostream& operator << (std::ostream& out, const CParserToken token)
+    {
+        return out << static_cast<uint32_t>(token.GetType()) << ':' << token.GetData();
+    }
+
+public:
+    static const std::array<std::string, operator_last> operator_names;
+    static const std::array<std::string, token_last> token_names;
+
+private:
+    static const uint32_t data_bits = 27;
+    static const uint32_t data_mask = (UINT32_C(1) << data_bits) - 1;
+
+private:
+    uint32_t value;
+};
+
+
+#define token_directive CParserToken(operator_point)
+
+/***************************************************************************
+*
+*
+***************************************************************************/
+class CAssemblerIdentifier {
+public:
+    CAssemblerIdentifier(const std::string & _name)
+        : data(0)
+        , mask(0)
+        , sectionId(s_InvalidSectionId)
+        , name(_name)
+    {}
+
+    void SetSectionInfo(uint32_t id, uint32_t offset) { sectionId = id; data = offset; }
+    uint32_t GetSectionId(void) const { return sectionId; } 
+    bool IsValidSection(void) const { return sectionId != s_InvalidSectionId; }
+    const std::string & GetName(void) const { return name; }
+
+public:
+    unsigned int    data;        // user defined token info
+    uint32_t        mask;
+
+private:
+    static const uint32_t s_InvalidSectionId = std::numeric_limits<uint32_t>::max();
+
+private:
+    uint32_t        sectionId;
+    std::string     name;
+};
+
+class CScanner {
+public:
+    CScanner(void) : m_Position(0) {}
+
+    int Get(void) { return m_Position < m_Source.size() ? 255 & m_Source[m_Position++] : -1; }
+    void Unget(int) { m_Position--; }
+    size_t GetPosition(void) const { return m_Position; }
+    void ResetPosition(void) { m_Position = 0; }
+    void read(std::istream& input);
+    char operator [] (size_t index) const { return m_Source[index]; }
+
+private:
+    std::vector<char>   m_Source;
+    size_t              m_Position;
+};
+
+class CTextStorage {
+public:
+    const char * GetData(size_t dataOffset) const { return &m_TextData[dataOffset]; }
+    size_t GetCurrentPosition(void) const { return m_TextData.size(); }
+    void Store(char chr) { m_TextData.push_back(chr); }
+    void RollBackToPosition(size_t position) { m_TextData.resize(position); }
+
+    void Setup(size_t size)
+    {
+        m_TextData.clear();
+        m_TextData.reserve(size);
+    }
+
+private:
+    std::vector<char>  m_TextData;
+};
+
+class IFormatterInterface;
+
+class CTokenizer {
+public:
+    ~CTokenizer();
+    void InitPass();
+    int Scan(std::istream& input, std::ostream& out);
+    int ScanHtml(std::istream& input, std::ostream& out);
+    void PrintTokens(std::ostream& out, const std::vector<CParserToken> & token, int flags) const;
+    void PrintToken(std::ostream& out, CParserToken token) const;
+
+    void report_error(std::ostringstream & out) const;
+    void report_warning(std::ostringstream & out) const;
+
+    unsigned GetLineNum(void) const { return m_linenum; }
+
+    CAssemblerIdentifier & GetIdentifierInfo(uint32_t ident) { return m_Idents[ident]; }
+    const CAssemblerIdentifier & GetIdentifierInfo(uint32_t ident) const { return m_Idents[ident]; }
+
+    void Init(void);
+    int TokenizeInput(IFormatterInterface & formatter, std::istream & input);
+    int TokenizeInput(std::istream & input);
+
+    uint64_t GetChar(uint32_t data) const;
+    uint64_t GetHexadecimal(uint32_t data) const;
+    uint64_t GetDecimal(uint32_t data) const;
+    uint64_t GetOctal(uint32_t data) const;
+    uint64_t GetBinary(uint32_t data) const;
+    mpfr::mpreal GetFloat(uint32_t data) const;
+
+    CParserToken AddIdentifier(const std::string & name);
+
+protected:
+    bool IsNextRowExist(void);
+    void GetString(CProgramSection & seg);
+    CParserToken GetToken(void);
+    CParserToken GetCurrentToken(unsigned offset = 0) const;
+    void PopToken(void);
+    void PutBackToken(void);
+
+private:
+    int TokenizeSpaces(IFormatterInterface & formatter);
+    CParserToken TokenizeIdentifier(IFormatterInterface & formatter, int chr);
+    CParserToken TokenizeConstant(IFormatterInterface & formatter, int chr);
+    CParserToken TokenizeDecimal(IFormatterInterface & formatter, size_t txtpos);
+    CParserToken TokenizeMantissa(IFormatterInterface & formatter, size_t txtpos);
+    CParserToken TokenizeString(IFormatterInterface & formatter);
+    CParserToken TokenizeChar(IFormatterInterface & formatter);
+    CParserToken TokenizeOperator(IFormatterInterface & formatter, int chr);
+    CParserToken TokenizeOperator(IFormatterInterface & formatter, EOperatorKind op);
+
+private:
+    CScanner                                     m_Scanner;
+    CTextStorage                                 m_TextStorage;
+    std::vector<CParserToken>                    m_TokenStorage;
+    std::unordered_map<std::string, uint32_t>    m_MapNameToIdent;
+    std::vector<CAssemblerIdentifier>            m_Idents;
+    unsigned int                                 m_token_pos;  // token stream current position
+    unsigned int                                 m_linenum;    // token stream input line num
+};
+
+/****************************************************************************
+* assembler error messaging
+****************************************************************************/
+#define REPORT_ERROR(ctrl)    if (false) {} else CErrorHandler(ctrl) += Formatter()
+#define REPORT_WARNING(ctrl)  if (false) {} else CWarningHandler(ctrl) += Formatter()
+
+class Formatter {
+public:
+    Formatter() {}
+    ~Formatter() {}
+    Formatter(const Formatter &) = delete;
+    Formatter & operator = (Formatter &) = delete;
+
+    template <typename Type> Formatter & operator << (Type && value)
+    {
+        stream_ << std::forward<Type>(value);
+        return *this;
+    }
+
+    std::ostringstream & stream() { return stream_; }
+
+private:
+    std::ostringstream stream_;
+};
+
+class CErrorHandler {
+public:
+    CErrorHandler(const CTokenizer *p) : ctrl(p) {}
+    void operator += (Formatter & formatter)
+    {
+        ctrl->report_error(formatter.stream());
+    }
+private:
+    const CTokenizer *ctrl;
+};
+
+class CWarningHandler {
+public:
+    CWarningHandler(const CTokenizer *p) : ctrl(p) {}
+    void operator += (Formatter & formatter)
+    {
+        ctrl->report_warning(formatter.stream());
+    }
+private:
+    const CTokenizer *ctrl;
+};
+
+class CTokenPrinter {
+public:
+    CTokenPrinter(const CTokenizer * _assembler, CParserToken _token)
+        : assembler(_assembler)
+        , token(_token)
+    { }
+
+    friend std::ostream & operator << (std::ostream& out, const CTokenPrinter & printer)
+    {
+        printer.assembler->PrintToken(out, printer.token);
+        return out;
+    }
+
+private:
+    const CTokenizer *   assembler;
+    CParserToken         token;
+};
+
+class CTokenVectorPrinter {
+public:
+    CTokenVectorPrinter(const CTokenizer * _assembler, const std::vector<CParserToken> & _tokens, int _flag)
+        : assembler(_assembler)
+        , tokens(_tokens)
+        , flag(_flag)
+    { }
+
+    friend std::ostream & operator << (std::ostream& out, const CTokenVectorPrinter & printer)
+    {
+        printer.assembler->PrintTokens(out, printer.tokens, printer.flag);
+        return out;
+    }
+
+private:
+    const CTokenizer *                   assembler;
+    const std::vector<CParserToken> &    tokens;
+    int                                  flag;
+};
+
+} //namespace postrisc
