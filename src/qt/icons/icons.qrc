@@ -1,0 +1,35 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file>cpu.svg</file>
+        <file>graph.svg</file>
+        <file>server.svg</file>
+        <file>ram-memory.svg</file>
+        <file>binary-code.svg</file>
+        <file>info.svg</file>
+        <file>loadfile.svg</file>
+        <file>exit.svg</file>
+        <file>expand.svg</file>
+        <file>zoom-in.svg</file>
+        <file>zoom-out.svg</file>
+        <file>save.svg</file>
+        <file>spreadsheet.svg</file>
+        <file>documents.svg</file>
+        <file>logo.svg</file>
+        <file>file.svg</file>
+        <file>stop-clock.svg</file>
+        <file>step.svg</file>
+        <file>step-clock.svg</file>
+        <file>reverse.svg</file>
+        <file>reset.svg</file>
+        <file>tag.svg</file>
+        <file>run.svg</file>
+        <file>cancel.svg</file>
+        <file>saveas.svg</file>
+        <file>notepad.svg</file>
+        <file>plus.svg</file>
+        <file>delete.svg</file>
+    </qresource>
+    <qresource prefix="/stylesheets">
+        <file>styles.css</file>
+    </qresource>
+</RCC>
