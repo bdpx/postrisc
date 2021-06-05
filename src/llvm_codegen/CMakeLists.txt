@@ -1,0 +1,33 @@
+project(llvm_codegen)
+
+add_library(${PROJECT_NAME} OBJECT
+    atomics.cpp
+    bitcast.cpp
+    bin_imm.cpp
+    branches.cpp
+    builtin.cpp
+    build_vector.cpp
+
+    divide_pow2.cpp
+
+    fp_arithmetic.cpp
+    int_arithmetic.cpp
+
+    Generator.cpp
+    Generator.hpp
+
+    immediates.cpp
+    immediates.hpp
+
+    load_store.cpp
+)
+
+target_include_directories(${PROJECT_NAME}
+    PRIVATE ${PROJECT_SOURCE_DIR}
+)
+
+target_link_libraries(${PROJECT_NAME}
+    arch
+    disassembler
+    util
+)
