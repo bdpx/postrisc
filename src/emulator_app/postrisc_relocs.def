@@ -1,0 +1,146 @@
+#ifndef ELF_RELOC
+#error "ELF_RELOC must be defined"
+#endif
+
+/*******************************************************************************
+*
+* first 50 reloc indexes are reserved for data and presented in one version
+*
+* subsequent indices are for code relocs and depend on position
+* inside bundle and instruction length (single or double slot)
+* there are 5 different relocs: (for some XXXX specifier relocation type)
+* R_POSTRISC_A_XXXX     - single slot inst in A slot
+* R_POSTRISC_B_XXXX     - single slot inst in B slot
+* R_POSTRISC_C_XXXX     - single slot inst in C slot
+* R_POSTRISC_A_XXXX_EXT - double slot inst starting in A slot (A&B slots)
+* R_POSTRISC_B_XXXX_EXT - double slot inst starting in B slot (B&C slots)
+*******************************************************************************/
+
+ELF_RELOC(R_POSTRISC_NONE,                         0)
+ELF_RELOC(R_POSTRISC_8,                            1)
+ELF_RELOC(R_POSTRISC_16,                           2)
+ELF_RELOC(R_POSTRISC_32,                           3)
+ELF_RELOC(R_POSTRISC_64,                           4)
+ELF_RELOC(R_POSTRISC_COPY,                         5)
+ELF_RELOC(R_POSTRISC_JMP_SLOT,                     6)
+ELF_RELOC(R_POSTRISC_RELATIVE,                     7)
+ELF_RELOC(R_POSTRISC_DISP8,                        8)
+ELF_RELOC(R_POSTRISC_DISP16,                       9)
+ELF_RELOC(R_POSTRISC_DISP32,                      10)
+ELF_RELOC(R_POSTRISC_DISP64,                      11)
+ELF_RELOC(R_POSTRISC_GLOB_DAT,                    12)
+ELF_RELOC(R_POSTRISC_PLT64,                       13)
+ELF_RELOC(R_POSTRISC_R_DISP32,                    14)
+ELF_RELOC(R_POSTRISC_PC32,                        15)
+ELF_RELOC(R_POSTRISC_DTPMOD64,                    16)
+ELF_RELOC(R_POSTRISC_DTPOFF64,                    17)
+ELF_RELOC(R_POSTRISC_TPOFF64,                     18)
+ELF_RELOC(R_POSTRISC_TLSDESC,                     19)
+ELF_RELOC(R_POSTRISC_GOTOFF,                      20)
+
+/******************************************************************************
+* 5x grouped later
+* indexes after 50 are for grouped only
+******************************************************************************/
+
+// JUMP (ip-relative)
+ELF_RELOC(R_POSTRISC_A_JUMP,                      50)
+ELF_RELOC(R_POSTRISC_B_JUMP,                      51)
+ELF_RELOC(R_POSTRISC_C_JUMP,                      52)
+ELF_RELOC(R_POSTRISC_A_JUMP_EXT,                  53)
+ELF_RELOC(R_POSTRISC_B_JUMP_EXT,                  54)
+
+// BRANCH (ip-relative)
+ELF_RELOC(R_POSTRISC_A_BRANCH,                    55)
+ELF_RELOC(R_POSTRISC_B_BRANCH,                    56)
+ELF_RELOC(R_POSTRISC_C_BRANCH,                    57)
+ELF_RELOC(R_POSTRISC_A_BRANCH_EXT,                58)
+ELF_RELOC(R_POSTRISC_B_BRANCH_EXT,                59)
+
+// PCREL_FWD
+ELF_RELOC(R_POSTRISC_A_PCREL_FWD,                 60)
+ELF_RELOC(R_POSTRISC_B_PCREL_FWD,                 61)
+ELF_RELOC(R_POSTRISC_C_PCREL_FWD,                 62)
+ELF_RELOC(R_POSTRISC_A_PCREL_FWD_EXT,             63)
+ELF_RELOC(R_POSTRISC_B_PCREL_FWD_EXT,             64)
+
+// PCREL_FWD_GOT
+ELF_RELOC(R_POSTRISC_A_PCREL_FWD_GOT,             65)
+ELF_RELOC(R_POSTRISC_B_PCREL_FWD_GOT,             66)
+ELF_RELOC(R_POSTRISC_C_PCREL_FWD_GOT,             67)
+ELF_RELOC(R_POSTRISC_A_PCREL_FWD_GOT_EXT,         68)
+ELF_RELOC(R_POSTRISC_B_PCREL_FWD_GOT_EXT,         69)
+
+// PCREL_FWD_PLT
+ELF_RELOC(R_POSTRISC_A_PCREL_FWD_PLT,             70)
+ELF_RELOC(R_POSTRISC_B_PCREL_FWD_PLT,             71)
+ELF_RELOC(R_POSTRISC_C_PCREL_FWD_PLT,             72)
+ELF_RELOC(R_POSTRISC_A_PCREL_FWD_PLT_EXT,         73)
+ELF_RELOC(R_POSTRISC_B_PCREL_FWD_PLT_EXT,         74)
+
+// LDI
+ELF_RELOC(R_POSTRISC_A_LDI,                       75)
+ELF_RELOC(R_POSTRISC_B_LDI,                       76)
+ELF_RELOC(R_POSTRISC_C_LDI,                       77)
+ELF_RELOC(R_POSTRISC_A_LDI_EXT,                   78)
+ELF_RELOC(R_POSTRISC_B_LDI_EXT,                   79)
+
+// OFFSET
+ELF_RELOC(R_POSTRISC_A_OFFSET,                    80)
+ELF_RELOC(R_POSTRISC_B_OFFSET,                    81)
+ELF_RELOC(R_POSTRISC_C_OFFSET,                    82)
+ELF_RELOC(R_POSTRISC_A_OFFSET_EXT,                83)
+ELF_RELOC(R_POSTRISC_B_OFFSET_EXT,                84)
+
+/******************************************************************************
+* TLS
+******************************************************************************/
+
+// TLS_GD_GOT_OFFSET
+ELF_RELOC(R_POSTRISC_A_TLS_GD_GOT_OFFSET,        100)
+ELF_RELOC(R_POSTRISC_B_TLS_GD_GOT_OFFSET,        101)
+ELF_RELOC(R_POSTRISC_C_TLS_GD_GOT_OFFSET,        102)
+ELF_RELOC(R_POSTRISC_A_TLS_GD_GOT_OFFSET_EXT,    103)
+ELF_RELOC(R_POSTRISC_B_TLS_GD_GOT_OFFSET_EXT,    104)
+
+// TLS_GD_CALL
+ELF_RELOC(R_POSTRISC_A_TLS_GD_CALL,              105)
+ELF_RELOC(R_POSTRISC_B_TLS_GD_CALL,              106)
+ELF_RELOC(R_POSTRISC_C_TLS_GD_CALL,              107)
+ELF_RELOC(R_POSTRISC_A_TLS_GD_CALL_EXT,          108)
+ELF_RELOC(R_POSTRISC_B_TLS_GD_CALL_EXT,          109)
+
+// TLS_LD_GOT_OFFSET
+ELF_RELOC(R_POSTRISC_A_TLS_LD_GOT_OFFSET,        110)
+ELF_RELOC(R_POSTRISC_B_TLS_LD_GOT_OFFSET,        111)
+ELF_RELOC(R_POSTRISC_C_TLS_LD_GOT_OFFSET,        112)
+ELF_RELOC(R_POSTRISC_A_TLS_LD_GOT_OFFSET_EXT,    113)
+ELF_RELOC(R_POSTRISC_B_TLS_LD_GOT_OFFSET_EXT,    114)
+
+// TLS_LD_CALL
+ELF_RELOC(R_POSTRISC_A_TLS_LD_CALL,              115)
+ELF_RELOC(R_POSTRISC_B_TLS_LD_CALL,              116)
+ELF_RELOC(R_POSTRISC_C_TLS_LD_CALL,              117)
+ELF_RELOC(R_POSTRISC_A_TLS_LD_CALL_EXT,          118)
+ELF_RELOC(R_POSTRISC_B_TLS_LD_CALL_EXT,          119)
+
+// TLS_LD_OFFSET
+ELF_RELOC(R_POSTRISC_A_TLS_LD_OFFSET,            120)
+ELF_RELOC(R_POSTRISC_B_TLS_LD_OFFSET,            121)
+ELF_RELOC(R_POSTRISC_C_TLS_LD_OFFSET,            122)
+ELF_RELOC(R_POSTRISC_A_TLS_LD_OFFSET_EXT,        123)
+ELF_RELOC(R_POSTRISC_B_TLS_LD_OFFSET_EXT,        124)
+
+// TLS_IE_OFFSET
+ELF_RELOC(R_POSTRISC_A_TLS_IE_OFFSET,            125)
+ELF_RELOC(R_POSTRISC_B_TLS_IE_OFFSET,            126)
+ELF_RELOC(R_POSTRISC_C_TLS_IE_OFFSET,            127)
+ELF_RELOC(R_POSTRISC_A_TLS_IE_OFFSET_EXT,        128)
+ELF_RELOC(R_POSTRISC_B_TLS_IE_OFFSET_EXT,        129)
+
+// TLS_LE_OFFSET
+ELF_RELOC(R_POSTRISC_A_TLS_LE_OFFSET,            130)
+ELF_RELOC(R_POSTRISC_B_TLS_LE_OFFSET,            131)
+ELF_RELOC(R_POSTRISC_C_TLS_LE_OFFSET,            132)
+ELF_RELOC(R_POSTRISC_A_TLS_LE_OFFSET_EXT,        133)
+ELF_RELOC(R_POSTRISC_B_TLS_LE_OFFSET_EXT,        134)
