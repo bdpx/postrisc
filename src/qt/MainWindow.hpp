@@ -1,0 +1,122 @@
+#pragma once
+
+#include <QMainWindow>
+#include <QSettings>
+#include <QList>
+#include <QString>
+#include <QThread>
+#include <QProxyStyle>
+
+#include "AssemblerTextEdit.hpp"
+#include "DisassemblerWidget.hpp"
+#include "CoreWidget.hpp"
+#include "LoggerWidget.hpp"
+
+#include "util/logger.hpp"
+#include "doom/DoomInterface.hpp"
+#include "config/configuration.hpp"
+
+namespace postrisc {
+
+class TargetSystem;
+class TriangleWindow;
+
+/***************************************************************************
+* DoomInterface which triggers redraw from emulator thread to gui thread
+***************************************************************************/
+class QtDoomInterface : public QObject, public DoomInterface {
+    Q_OBJECT
+
+public:
+    explicit QtDoomInterface(Configuration& configuration_, QObject *parent = nullptr)
+        : QObject(parent), configuration(configuration_) {}
+
+    // Doom interface
+    ~QtDoomInterface(void) override {};
+    int Init(unsigned resx, unsigned resy) override;
+    int DrawFrame(const u8 *screenbuffer, unsigned resx, unsigned resy, const DoomColor *colormap) override;
+    int GetKey(int* pressed, unsigned char* Key) override;
+    int SetWindowTitle(char const *title) override;
+
+public:
+    void SendApplyImage(const QImage& image) { emit applyImage(image); }
+
+public slots:
+    void process(void) {
+        configuration.do_run(*this);
+        LOG_DEBUG(LOG_DISPLAY) << "runner stopped";
+        emit finished();
+        LOG_DEBUG(LOG_DISPLAY) << "runner finished";
+    }
+
+signals:
+    void applyImage(const QImage& image);
+    void finished(void);
+    void error(QString err);
+
+public:
+    bool stopped = false;
+
+private:
+    Configuration& configuration;
+};
+
+/***************************************************************************
+* CustomTabStyle
+***************************************************************************/
+class CustomTabStyle : public QProxyStyle {
+public:
+  QSize sizeFromContents(ContentsType type, const QStyleOption* option,
+                         const QSize& size, const QWidget* widget) const;
+  void drawControl(ControlElement element, const QStyleOption* option, QPainter* painter, const QWidget* widget) const;
+};
+
+/***************************************************************************
+* MainWindow
+***************************************************************************/
+class MainWindow : public QMainWindow {
+Q_OBJECT
+
+public:
+    explicit MainWindow(TargetSystem& targetSystem, QWidget *parent = 0);
+    ~MainWindow();
+
+    void closeEvent(QCloseEvent *event) override;
+
+    void Setup(Configuration& configuration);
+    int ScaleDpiX(int s) { return s * logicalDpiX() / 96.0; }
+    int ScaleDpiY(int s) { return s * logicalDpiY() / 96.0; }
+
+public:
+    void Action_About();
+    void Action_Build();
+    void Action_Cancel();
+    void Action_Compile();
+    void Action_Exit();
+    void Action_OpenProgram();
+    void Action_SaveProgram();
+    void Action_SaveAsProgram();
+    void Action_Reset();
+    void Action_Run();
+    void Action_Start();
+    void Action_StartAndWait();
+    void Action_Step();
+    void Action_Stop();
+    void Action_WaitFinish();
+
+private:
+    QToolBar *m_ToolBar = nullptr;
+    AssemblerTextEdit *m_AssemblerTextEdit = nullptr;
+    DisassemblerWidget *m_DisassemblerWidget = nullptr;
+    CoreWidget *m_CoreWidget = nullptr;
+    LoggerWidget *m_LoggerWidget = nullptr;
+    QThread *m_EmulatorThread = nullptr;
+    QtDoomInterface *m_updater = nullptr;
+    TriangleWindow *m_twindow;
+
+    CustomTabStyle m_CustomTabStyle;
+    std::string m_Program;
+    TargetSystem& m_TargetSystem;
+};
+
+} // namespace postrisc
