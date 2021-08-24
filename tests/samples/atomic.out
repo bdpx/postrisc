@@ -1,0 +1,11 @@
+test atomic fetch-op
+atomic base: fffffffff163ffc0
+test amoadd
+test amo-binary
+test amomin
+test amominu
+test cas
+test load atomic relaxed
+test load atomic acquire
+test store atomic relaxed
+test store atomic release
