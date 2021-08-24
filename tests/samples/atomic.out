@@ -1,0 +1,15 @@
+test atomic fetch-op
+atomic base: fffffffff163ffc0
+test amo-add
+test amo-and
+test amo-or
+test amo-xor
+test amo-smin
+test amo-smax
+test amo-umin
+test amo-umax
+test cas
+test load atomic relaxed
+test load atomic acquire
+test store atomic relaxed
+test store atomic release
