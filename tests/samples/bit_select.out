@@ -1,0 +1,4 @@
+check bit selection instruction
+expect: 3355335533553355
+result: 3355335533553355
+end_bitselect_test

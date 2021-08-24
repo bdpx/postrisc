@@ -1,0 +1,7 @@
+test carry-less multiply
+clmul: 1d1e1f2c592e7c45_d66ee03e410fd4ed 929633d5d36f0451_1d4d84c85c3440c0
+clmul: 1a2bf6db3a30862f_babf262df4b7d5c9 7fa540ac2a281315_1bd17c8d556ab5a1
+clmul: 1bd17c8d556ab5a1_7fa540ac2a281315 babf262df4b7d5c9_1a2bf6db3a30862f
+clmul: 1d4d84c85c3440c0_929633d5d36f0451 d66ee03e410fd4ed_1d1e1f2c592e7c45
+test aes
+end aes test
