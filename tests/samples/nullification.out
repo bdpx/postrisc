@@ -1,0 +1,21 @@
+test nullification (explicit masks)
+5
+6
+7
+8
+test nullification (predicate names)
+5
+6
+7
+8
+test nullification
+test nullification
+branch1: psr=0000003800000000 pm=0 id=0 dd=0 lp=0 tb=0 ss=0 ic=0 ib=0 pl=0 pp=0 rs=0 future=00000000000000000000000000111000
+branch1: 2
+branch1: 2
+branch1: 2
+0ne
+1ne
+2ne
+else
+end_nullification_test
