@@ -1,0 +1,13 @@
+base addressing
+data_lbl: 131072
+data_hi(data_lbl): 0
+data_lo(data_lbl): 131072
+ca.rf(data_lbl): fffffffff1250000
+ca.rf(data_lbl): fffffffff1250000
+r13     -249364480
+r14     -249233408
+r13     -249364480
+r25     25
+r26     26
+r27     27
+r28     28
