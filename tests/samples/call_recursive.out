@@ -1,0 +1,64 @@
+test recursive calls
+9223372036854775807
+rsc: 0000000000000036 sof=54 bof=0 soc=0 ndirty=0 bod=0
+r0      0000000000028232_fffffffff1230060
+r1=1 r2=2 r3=3
+r51=12345 rsc=0000000000000036 sof=54 bof=0 soc=0 ndirty=0 bod=0
+r0=0000000000024134_fffffffff1230070 r1=10
+rsc: 0000000034003404 sof=4 bof=52 soc=0 ndirty=52 bod=0
+rsp: fffffffff1730000
+r0=0000000000010102_fffffffff12300c2 r1=9
+rsc: 0000000036003604 sof=4 bof=54 soc=0 ndirty=54 bod=0
+rsp: fffffffff1730000
+r0=0000000000010102_fffffffff12300c2 r1=8
+rsc: 0000000038003804 sof=4 bof=56 soc=0 ndirty=56 bod=0
+rsp: fffffffff1730000
+r0=0000000000010102_fffffffff12300c2 r1=7
+rsc: 000000003a003a04 sof=4 bof=58 soc=0 ndirty=58 bod=0
+rsp: fffffffff1730000
+r0=0000000000010102_fffffffff12300c2 r1=6
+rsc: 000000003c003c04 sof=4 bof=60 soc=0 ndirty=60 bod=0
+rsp: fffffffff1730000
+r0=0000000000010102_fffffffff12300c2 r1=5
+rsc: 000000003e003e04 sof=4 bof=62 soc=0 ndirty=62 bod=0
+rsp: fffffffff1730000
+r0=0000000000010102_fffffffff12300c2 r1=4
+rsc: 0000000040004004 sof=4 bof=64 soc=0 ndirty=64 bod=0
+rsp: fffffffff1730000
+r0=0000000000010102_fffffffff12300c2 r1=3
+rsc: 0000000042004204 sof=4 bof=66 soc=0 ndirty=66 bod=0
+rsp: fffffffff1730000
+r0=0000000000010102_fffffffff12300c2 r1=2
+rsc: 0000000044004404 sof=4 bof=68 soc=0 ndirty=68 bod=0
+rsp: fffffffff1730000
+r0=0000000000010102_fffffffff12300c2 r1=1
+rsc: 0000000046004604 sof=4 bof=70 soc=0 ndirty=70 bod=0
+rsp: fffffffff1730000
+r0=0000000000010102_fffffffff12300c2 r1=0
+rsc: 0000000048004804 sof=4 bof=72 soc=0 ndirty=72 bod=0
+rsp: fffffffff1730000
+rsp: fffffffff1730000
+r0: 0000000000010102_fffffffff12300c2
+rsp: fffffffff1730000
+r0: 0000000000010102_fffffffff12300c2
+rsp: fffffffff1730000
+r0: 0000000000010102_fffffffff12300c2
+rsp: fffffffff1730000
+r0: 0000000000010102_fffffffff12300c2
+rsp: fffffffff1730000
+r0: 0000000000010102_fffffffff12300c2
+rsp: fffffffff1730000
+r0: 0000000000010102_fffffffff12300c2
+rsp: fffffffff1730000
+r0: 0000000000010102_fffffffff12300c2
+rsp: fffffffff1730000
+r0: 0000000000010102_fffffffff12300c2
+rsp: fffffffff1730000
+r0: 0000000000010102_fffffffff12300c2
+rsp: fffffffff1730000
+r0: 0000000000010102_fffffffff12300c2
+rsp: fffffffff1730000
+r0: 0000000000024134_fffffffff1230070
+rsc: 0000000000000036 sof=54 bof=0 soc=0 ndirty=0 bod=0
+rsp: fffffffff1730000
+end_call_recursive
