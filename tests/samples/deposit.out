@@ -1,0 +1,6 @@
+test bit-field insert (deposit)
+dep: eeeeeeaaaaaaaaaa
+dep: aaaaaaeeeeeeeeee
+test vector deposit (dep16)
+dep16: 0000000fffffffff_ffffffffffffffff
+end deposit test
