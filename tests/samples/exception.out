@@ -1,0 +1,7 @@
+begin exception test
+eip: fffffffff1230070
+eip: fffffffff1230050
+call_destructor_2
+call_destructor_1
+caught exception, exit
+caught exception context: r12=ffffffffffff1230

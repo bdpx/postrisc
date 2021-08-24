@@ -1,0 +1,19 @@
+test control device memory-mapped registers
+test pci
+read pci_did
+mem[DEVICE_CONTROL_DID] 0000000000000000
+writing pci_did: 0x1234567890abcdef
+read pci_did
+mem[DEVICE_CONTROL_DID] 1234567890abcdef
+read pci_cmd
+mem[DEVICE_CONTROL_CMD] 0000000000000000
+writing pci_cmd: 0x1234567890abcdef
+read pci_cmd
+mem[DEVICE_CONTROL_CMD] 1234567890abcdef
+read device_array_address
+mem[DEVICE_CONTROL_ARRAY_ADDRESS] (r20)
+read device_array_len
+mem[DEVICE_CONTROL_ARRAY_LEN] 24576
+test command
+writing pci_cmd: 0xabcdef1234567890
+end_device_control_test
