@@ -1,0 +1,31 @@
+test load constant (1234567)
+ldi: 1234567
+test load long constant (123456789012345678)
+ldi long: 123456789012345678
+test simple arithmetic
+add 1+2
+add: 3
+add immediate 1+6
+addi: 7
+sub 1-2
+sub: -1
+sub reverse 6-1
+sub reverse: 5
+mul 3*4
+mul: 12
+12 div 4
+3
+15 mod 4
+mod: 3
+test int32_t add
+add4: -17
+addis4.l: -2
+test signed overflow: -5764607527023782281 -5764607527023782280
+add overflow
+addo: 1
+subtract overflow
+subo: 0
+test unsigned add carry
+addaddc: 18446744073709551614 18446744073709551615 18446744073709551615 => -3
+test unsigned subtract borrow
+subsub: 12 18446744073709551615 18446744073709551615 => 13
