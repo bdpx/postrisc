@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<config>
+    <parameters>
+        <verbose>${VERBOSE_INFO}</verbose>
+        <timing_info>${TIMING_INFO}</timing_info>
+        <profiling>false</profiling>
+        <dump_host_info>false</dump_host_info>
+    </parameters>
+    <loader>
+        <base_address>0xfffffffff1230000</base_address>
+    </loader>
+    <system>
+        <bits_per_physical_address>40</bits_per_physical_address>
+        <!-- 14 bits - 16KiB pages -->
+        <page_offset_bits>14</page_offset_bits>
+        <!-- 14 + 3 * (14 - 3) = 47 bits -->
+        <page_table_levels>3</page_table_levels>
+    </system>
+    <devices>
+        <core type="standalone">
+            <name>core0</name>
+        </core>
+        <memory type="first">
+            <size>0x30000</size>
+            <mapping>
+                <address>0x0000001234500000</address>
+                <size>0x10000</size>
+                <offset>0x0</offset>
+            </mapping>
+            <mapping>
+                <address>0x0000002234500000</address>
+                <size>0x20000</size>
+                <offset>0x10000</offset>
+            </mapping>
+        </memory>
+        <memory type="second">
+            <size>0x30000</size>
+            <mapping>
+                <address>0x0000003234500000</address>
+                <size>0x10000</size>
+                <offset>0x0</offset>
+            </mapping>
+            <mapping>
+                <address>0x0000004234500000</address>
+                <size>0x20000</size>
+                <offset>0x10000</offset>
+            </mapping>
+        </memory>
+        <rom type="bios">
+            <!-- expected: build folder inside project -->
+            <filename>${ROM_IMAGE_PATH}</filename>
+            <phys_address>0x0000000fcc000000</phys_address>
+            <virt_address>0xffffffffcc000000</virt_address>
+        </rom>
+        <video type="vga">
+            <phys_address>0x0000000fb0000000</phys_address>
+            <virt_address>0xffffffffb0000000</virt_address>
+            <width>160</width>
+            <height>120</height>
+        </video>
+        <devicearray type="devicearray">
+            <max_config_space_size>0x1000</max_config_space_size>
+            <phys_address>0x0000000fee000000</phys_address>
+            <virt_address>0xffffffffee000000</virt_address>
+        </devicearray>
+    </devices>
+</config>

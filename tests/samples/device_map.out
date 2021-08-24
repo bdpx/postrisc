@@ -1,0 +1,17 @@
+test core mapping DEVICE_CONFIG_VIRT_BASE
+test interrupt vector
+CoreArray write: pid=0 address=0000000000000088 len=8
+timecmp=0000000000abcdef
+test timecmp
+CoreArray write: pid=0 address=0000000000000088 len=8
+timecmp=0000000000abcdef
+test rom mapping ROM_VIRT_BASE
+mem[ROM_VIRT_BASE] 0000000020202020
+test video commands VIDEO_COMMAND_VIRT_BASE
+clear pixelnum=76800 color=00001234
+redraw
+video width/height base: ffffffffee004000
+width=160 heigth=120
+test video memory VIDEO_VIRT_BASE
+r20     ffffffffb0000000
+end test video memory
