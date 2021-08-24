@@ -1,0 +1,4 @@
+test system instructions (assembler only)
+test tpa for sp: 0xfffffffff163ffe0
+tpa(sp): 0x000000123452ffe0
+end test system instructions (assembler only)

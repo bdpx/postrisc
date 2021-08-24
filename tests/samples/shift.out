@@ -1,0 +1,40 @@
+initial values
+1234567890abcdef
+rotate left
+f121579bde2468ac
+rotate right
+579bde2468acf121
+rotate left immediate
+579bde2468acf121
+rotate right immediate
+f121579bde2468ac
+shift signed|unsigned by immediate 12 bit
+fedcba0123456789
+ffffedcba0123456
+000fedcba0123456
+cba0123456789000
+cba0123456789000
+ba0123456789fedc
+0000000000345678
+ffffffffffa2b3c4
+test srpi
+6824682468acf0ac
+f0acf02468246824
+3412341234123412
+test vector shift right pair (srpi16) instruction
+r2      0000000000000000_0000000000000000
+r3      ffffffffffffffff_ffffffffffffffff
+r4      000000000000000f_ffffffffffffffff
+r4      fffffffffffffff0_0000000000000000
+r4      0000000000000000_000000000fffffff
+r4      ffffffffffffffff_fffffffff0000000
+test packed bitwise logical
+r20     'A'
+12345fffffffffff
+12345fffff800000
+abcdeffedcba9876
+0004321f00000000
+fffbcde100000000
+0004321effffffff
+00000001ffffffff
+r12: 10000
