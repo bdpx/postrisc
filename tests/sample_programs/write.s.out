@@ -1,0 +1,27 @@
+ip=fffffffff1230010, eip=0000000000000000, psr=00000000000000000000000000000001 pm=0 id=0 dd=0 lp=0 tb=0 ss=0 ic=0 ib=0 pl=0 pp=0 ri=1 future=0000000000000000
+end test write special regs
+
+test write: general register
+%i8(sp)  = 0
+%i16(sp) = 0
+%i32(sp) = -215744512
+%i64(sp) = -215744512
+%u8(sp)  = 0
+%u16(sp) = 0
+%u32(sp) = 4079222784
+%u64(sp) = 18446744073493807104
+%x8(sp)  = 0x00
+%x16(sp) = 0x0000
+%x32(sp) = 0xf3240000
+%x64(sp) = 0xfffffffff3240000
+0000000000000000
+0000000000000000
+0000000000000000
+0000000000000000
+0000000000000000
+fffffffff3240000
+fffffffff3240000
+fffffffff2230000
+fffffffff3240000
+fffffffff3240000
+end test write general regs

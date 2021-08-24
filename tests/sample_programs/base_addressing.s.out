@@ -1,0 +1,12 @@
+base addressing
+data_lbl: 0
+data_hi(data_lbl): 0
+data_lo(data_lbl): 0
+ldr(data_lbl): -249233408
+r13     -232587264
+r14     -232587264
+r13     -232587264
+r25     0
+r26     0
+r27     0
+r28     0

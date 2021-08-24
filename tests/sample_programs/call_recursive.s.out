@@ -1,0 +1,64 @@
+test recursive calls
+9223372036854775807
+rsc: 0000000000000036 sof=54 bof=0 soc=0 ndirty=0 bod=0
+r0      ffffffff89180284
+r1=1 r2=2 r3=3
+r51=12345 rsc=0000000000000036 sof=54 bof=0 soc=0 ndirty=0 bod=0
+r0=ffffffff89180332 r1=10
+rsc: 0000000000800206 sof=6 bof=4 soc=0 ndirty=4 bod=0
+rsp: fffffffff5230000
+r0=ffffffff89180604 r1=9
+rsc: 0000000000c00306 sof=6 bof=6 soc=0 ndirty=6 bod=0
+rsp: fffffffff5230000
+r0=ffffffff89180604 r1=8
+rsc: 0000000001000406 sof=6 bof=8 soc=0 ndirty=8 bod=0
+rsp: fffffffff5230000
+r0=ffffffff89180604 r1=7
+rsc: 0000000001400506 sof=6 bof=10 soc=0 ndirty=10 bod=0
+rsp: fffffffff5230000
+r0=ffffffff89180604 r1=6
+rsc: 0000000001800606 sof=6 bof=12 soc=0 ndirty=12 bod=0
+rsp: fffffffff5230000
+r0=ffffffff89180604 r1=5
+rsc: 0000000001c00706 sof=6 bof=14 soc=0 ndirty=14 bod=0
+rsp: fffffffff5230000
+r0=ffffffff89180604 r1=4
+rsc: 0000000002000806 sof=6 bof=16 soc=0 ndirty=16 bod=0
+rsp: fffffffff5230000
+r0=ffffffff89180604 r1=3
+rsc: 0000000002400906 sof=6 bof=18 soc=0 ndirty=18 bod=0
+rsp: fffffffff5230000
+r0=ffffffff89180604 r1=2
+rsc: 0000000002800a06 sof=6 bof=20 soc=0 ndirty=20 bod=0
+rsp: fffffffff5230000
+r0=ffffffff89180604 r1=1
+rsc: 0000000002c00b06 sof=6 bof=22 soc=0 ndirty=22 bod=0
+rsp: fffffffff5230000
+r0=ffffffff89180604 r1=0
+rsc: 0000000003000c06 sof=6 bof=24 soc=0 ndirty=24 bod=0
+rsp: fffffffff5230000
+rsp: fffffffff5230000
+r0: ffffffff89180604
+rsp: fffffffff5230000
+r0: ffffffff89180604
+rsp: fffffffff5230000
+r0: ffffffff89180604
+rsp: fffffffff5230000
+r0: ffffffff89180604
+rsp: fffffffff5230000
+r0: ffffffff89180604
+rsp: fffffffff5230000
+r0: ffffffff89180604
+rsp: fffffffff5230000
+r0: ffffffff89180604
+rsp: fffffffff5230000
+r0: ffffffff89180604
+rsp: fffffffff5230000
+r0: ffffffff89180604
+rsp: fffffffff5230000
+r0: ffffffff89180604
+rsp: fffffffff5230000
+r0: ffffffff89180332
+rsc: 0000000000000036 sof=54 bof=0 soc=0 ndirty=0 bod=0
+rsp: fffffffff5230000
+end_call_recursive
